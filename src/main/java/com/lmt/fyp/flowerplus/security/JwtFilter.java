@@ -1,6 +1,7 @@
 package com.lmt.fyp.flowerplus.security;
 
-import com.lmt.fyp.flowerplus.repository.UserRepository;
+import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,15 +19,14 @@ import java.io.IOException;
 
 /**
  * Intercepts every incoming HTTP request exactly once.
- * Extracts the JWT from the Authorization header, validates it,
- * and populates the SecurityContext if the token is valid.
+ * Uses the "validate-first, extract-later" pattern to avoid
+ * uncaught JWT exceptions. Public paths are skipped entirely.
  */
 @Component
 @RequiredArgsConstructor
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-//    private final UserDetailsService userDetailsService;
     private final UserRepository userRepository;
 
     @Override
@@ -36,24 +36,39 @@ public class JwtFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
+        String jwt = null;
         final String authHeader = request.getHeader("Authorization");
 
-        // If there's no Bearer token, skip this filter entirely
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            jwt = authHeader.substring(7);
+        } else if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("flowerplus_at".equals(cookie.getName())) {
+                    jwt = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+        // If there's no token from either header or cookie, skip this filter entirely
+        if (jwt == null) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        final String jwt = authHeader.substring(7);
+        // Validate first — if token is expired/malformed, skip authentication silently
+        if (!jwtService.validateToken(jwt)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         final String username = jwtService.extractUsername(jwt);
 
         // Only authenticate if the user isn't already authenticated in this request
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-//            UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
-            UserDetails userDetails = userRepository.findByEmail(username)
-                    .orElseThrow(() -> new IllegalStateException("User not found: " + username));
+            UserDetails userDetails = userRepository.findByEmail(username).orElse(null);
 
-            if (jwtService.isTokenValid(jwt, userDetails)) {
+            if (userDetails != null && jwtService.isTokenValid(jwt, userDetails)) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
@@ -65,5 +80,13 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return path.startsWith("/api/auth/")
+                || path.startsWith("/swagger-ui")
+                || path.startsWith("/v3/api-docs");
     }
 }

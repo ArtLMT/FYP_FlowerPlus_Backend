@@ -1,20 +1,14 @@
 package com.lmt.fyp.flowerplus.security;
 
-import com.lmt.fyp.flowerplus.repository.UserRepository;
+import com.lmt.fyp.flowerplus.security.oauth2.CustomOAuth2UserService;
+import com.lmt.fyp.flowerplus.security.oauth2.OAuth2AuthenticationSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -22,6 +16,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * Central security configuration.
  *
  * Public endpoints : /auth/**  (register & login)
+ *                    /oauth2/** and /login/oauth2/** (OAuth2 authentication)
  *                    /swagger-ui/**  and  /v3/api-docs/**  (OpenAPI docs)
  * Protected        : everything else requires a valid JWT.
  */
@@ -31,7 +26,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtFilter jwtAuthFilter;
-    private final UserRepository userRepository;
+    private final AuthenticationProvider authenticationProvider;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
 
     // ------------------------------------------------------------------ //
     //  SecurityFilterChain
@@ -48,6 +47,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/**",
                                 "/api/auth/**",
+                                "/oauth2/**",
+                                "/login/oauth2/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
@@ -61,52 +62,25 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                .authenticationProvider(authenticationProvider())
+                .authenticationProvider(authenticationProvider)
+
+                // Exception handling — structured JSON for 401 and 403
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
+                        .accessDeniedHandler(jwtAccessDeniedHandler)
+                )
+
+                // Configure OAuth2 Login
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService)
+                        )
+                        .successHandler(oAuth2AuthenticationSuccessHandler)
+                )
 
                 // JWT filter runs before Spring's username/password filter
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
-
-    // ------------------------------------------------------------------ //
-    //  Authentication Beans
-    // ------------------------------------------------------------------ //
-
-    /**
-     * Loads users from the database by email (used as the "username").
-     */
-    @Bean
-    public UserDetailsService userDetailsService() {
-        return username -> userRepository.findByEmail(username)
-                .orElseThrow(() -> new UsernameNotFoundException(
-                        "User not found with email: " + username));
-    }
-
-    /**
-     * DAO-based provider wired to our UserDetailsService and BCrypt encoder.
-     */
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider =
-                new DaoAuthenticationProvider(userDetailsService());
-
-        provider.setPasswordEncoder(passwordEncoder());
-
-        return provider;
-    }
-
-    /**
-     * Exposes the AuthenticationManager so AuthService can call authenticate().
-     */
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
-    }
-
-    /** BCrypt is the industry-standard password hashing algorithm. */
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 }
