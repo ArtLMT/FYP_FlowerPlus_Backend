@@ -1,6 +1,6 @@
 package com.lmt.fyp.flowerplus.security;
 
-import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
+import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,14 +21,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @RequiredArgsConstructor
 public class ApplicationConfig {
 
-    private final UserRepository userRepository;
+    private final UserJpaRepository userRepository;
 
     /**
-     * Loads users from the database by email (used as the "username").
+     * Loads users from the database by email (used as the "username") and
+     * wraps the persistence entity in a SecurityUser principal. This is the
+     * only place the entity becomes a Spring Security UserDetails.
      */
     @Bean
     public UserDetailsService userDetailsService() {
         return email -> userRepository.findByEmail(email)
+                .map(SecurityUser::fromEntity)
                 .orElseThrow(() -> new UsernameNotFoundException(
                         "User not found with email: " + email));
     }

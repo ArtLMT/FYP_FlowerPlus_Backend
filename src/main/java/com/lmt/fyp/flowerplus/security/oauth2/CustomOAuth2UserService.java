@@ -3,10 +3,10 @@ package com.lmt.fyp.flowerplus.security.oauth2;
 import com.lmt.fyp.flowerplus.common.AuthProvider;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.UserRole;
-import com.lmt.fyp.flowerplus.module.user.entity.User;
-import com.lmt.fyp.flowerplus.module.user.entity.UserProfile;
-import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
-import com.lmt.fyp.flowerplus.module.user.repository.UserProfileRepository;
+import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaEntity;
+import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserProfileJpaEntity;
+import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaRepository;
+import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserProfileJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -28,8 +28,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
-    private final UserRepository userRepository;
-    private final UserProfileRepository userProfileRepository;
+    private final UserJpaRepository userRepository;
+    private final UserProfileJpaRepository userProfileRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -57,8 +57,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             throw new OAuth2AuthenticationException("Email not found from OAuth2 provider");
         }
 
-        Optional<User> userOptional = userRepository.findByEmail(email);
-        User user;
+        Optional<UserJpaEntity> userOptional = userRepository.findByEmail(email);
+        UserJpaEntity user;
 
         if (userOptional.isPresent()) {
             user = userOptional.get();
@@ -81,7 +81,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     }
 
     @SuppressWarnings("unchecked")
-    private User registerNewOAuth2User(Map<String, Object> attributes, AuthProvider provider) {
+    private UserJpaEntity registerNewOAuth2User(Map<String, Object> attributes, AuthProvider provider) {
         String email = (String) attributes.get("email");
         String fullName = (String) attributes.getOrDefault("name", "OAuth2 User");
         String providerId = getProviderId(attributes, provider);
@@ -100,7 +100,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         // Generate secure random password since password field cannot be null in database
         String randomPassword = UUID.randomUUID().toString();
 
-        User user = User.builder()
+        UserJpaEntity user = UserJpaEntity.builder()
                 .username(username)
                 .email(email)
                 .password(passwordEncoder.encode(randomPassword))
@@ -110,7 +110,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 .providerId(providerId)
                 .build();
 
-        User savedUser = userRepository.save(user);
+        UserJpaEntity savedUser = userRepository.save(user);
 
         // Fetch picture/avatar URL
         String avatar = (String) attributes.get("picture"); // default Google picture path
@@ -124,7 +124,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             }
         }
 
-        UserProfile profile = UserProfile.builder()
+        UserProfileJpaEntity profile = UserProfileJpaEntity.builder()
                 .user(savedUser)
                 .fullName(fullName)
                 .avatar(avatar)

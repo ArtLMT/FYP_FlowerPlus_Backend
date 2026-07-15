@@ -1,4 +1,4 @@
-package com.lmt.fyp.flowerplus.module.user.entity;
+package com.lmt.fyp.flowerplus.module.user.infrastructure.persistence;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -6,8 +6,10 @@ import lombok.*;
 import java.util.UUID;
 
 /**
- * Entity mapping to the user_profile table.
- * Holds additional profile details linked to a User account.
+ * PERSISTENCE ENTITY — OUTSIDE the wall (infrastructure).
+ *
+ * JPA mapping to the user_profile table. The FK relationship points at
+ * {@link UserJpaEntity} (the persistence type), never at the domain model.
  */
 @Entity
 @Table(name = "user_profile")
@@ -16,7 +18,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UserProfile {
+public class UserProfileJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -24,7 +26,7 @@ public class UserProfile {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
-    private User user;
+    private UserJpaEntity user;
 
     @Column(name = "full_name", nullable = false)
     private String fullName;
