@@ -1,16 +1,12 @@
-package com.lmt.fyp.flowerplus.module.auth.entity;
+package com.lmt.fyp.flowerplus.module.auth.infrastructure.persistence;
 
-import com.lmt.fyp.flowerplus.module.user.entity.User;
+import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Represents a refresh token stored in the database.
- * Tokens are disposable — created and deleted, never updated.
- */
 @Entity
 @Table(name = "refresh_token")
 @Getter
@@ -18,7 +14,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RefreshToken {
+public class RefreshTokenJpaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -26,7 +22,7 @@ public class RefreshToken {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private UserJpaEntity user;
 
     @Column(unique = true, nullable = false)
     private String token;

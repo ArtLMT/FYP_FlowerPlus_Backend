@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
  * The application service is framework-free, so Spring cannot discover it by
  * component scanning. Here — in the infrastructure layer, where framework
  * knowledge is allowed — we assemble it: take the LoadUserPort bean (provided
- * by UserPersistenceAdapter) and construct the UserService, exposing it as a
+ * by UserPersistenceAdapter) and construct the LoginService, exposing it as a
  * GetUserUseCase bean for the controller to inject.
  *
  * This is the seam that keeps all Spring wiring OUT of the core.

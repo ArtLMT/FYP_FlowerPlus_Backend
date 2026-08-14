@@ -41,6 +41,21 @@ public class SecurityUser implements UserDetails {
         return new SecurityUser(user.getEmail(), user.getPassword(), user.getRole(), user.getStatus());
     }
 
+    /**
+     * Single source of truth for "may this account authenticate at all?".
+     * Only BANNED is blocked; SUSPENDED users can still sign in (they are
+     * restricted at the order layer, not here). Shared with RefreshService so
+     * the refresh path and the UserDetails flags never drift apart.
+     */
+    public static boolean isAuthBlocked(UserAccountStatus status) {
+        return status == UserAccountStatus.BANNED;
+    }
+
+    /** The account status, for authorization checks beyond authentication. */
+    public UserAccountStatus getStatus() {
+        return status;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
@@ -59,12 +74,12 @@ public class SecurityUser implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        return status != UserAccountStatus.INACTIVE;
+        return true;
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return status != UserAccountStatus.SUSPENDED && status != UserAccountStatus.BANNED;
+        return !isAuthBlocked(status);
     }
 
     @Override
@@ -74,6 +89,6 @@ public class SecurityUser implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return status == UserAccountStatus.ACTIVE;
+        return !isAuthBlocked(status);
     }
 }

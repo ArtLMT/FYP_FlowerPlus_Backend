@@ -1,6 +1,6 @@
 package com.lmt.fyp.flowerplus.module.auth.scheduler;
 
-import com.lmt.fyp.flowerplus.module.auth.repository.RefreshTokenRepository;
+import com.lmt.fyp.flowerplus.module.auth.infrastructure.persistence.RefreshTokenJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,7 +14,7 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class TokenCleanupScheduler {
 
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenJpaRepository refreshTokenJpaRepository;
 
     /**
      * Purges expired refresh tokens from the database.
@@ -25,7 +25,7 @@ public class TokenCleanupScheduler {
     public void purgeExpiredTokens() {
         log.info("Starting scheduled cleanup of expired refresh tokens...");
         try {
-            refreshTokenRepository.deleteByExpiryDateBefore(Instant.now());
+            refreshTokenJpaRepository.deleteByExpiryDateBefore(Instant.now());
             log.info("Expired refresh tokens successfully purged.");
         } catch (Exception e) {
             log.error("Failed to purge expired refresh tokens", e);

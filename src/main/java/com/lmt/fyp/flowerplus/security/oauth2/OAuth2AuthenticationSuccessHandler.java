@@ -4,7 +4,7 @@ import com.lmt.fyp.flowerplus.module.auth.infrastructure.persistence.RefreshToke
 import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaEntity;
 import com.lmt.fyp.flowerplus.security.JwtService;
 import com.lmt.fyp.flowerplus.security.SecurityUser;
-import com.lmt.fyp.flowerplus.module.auth.application.service.RefreshTokenService;
+import com.lmt.fyp.flowerplus.module.auth.application.port.out.RefreshTokenPort;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,7 +28,7 @@ import java.io.IOException;
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtService jwtService;
-    private final RefreshTokenService refreshTokenService;
+    private final RefreshTokenPort refreshTokenPort;
 
     @Value("${application.security.oauth2.authorized-redirect-uri:http://localhost:3000/oauth2/redirect}")
     private String authorizedRedirectUri;
@@ -51,7 +51,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         // Generate JWT token and Refresh token for the local user account.
         // The entity is no longer a UserDetails, so wrap it for JWT generation.
         String token = jwtService.generateToken(SecurityUser.fromEntity(user));
-        RefreshTokenJpaEntity refreshTokenJpaEntity = refreshTokenService.createRefreshToken(user);
+        RefreshTokenJpaEntity refreshTokenJpaEntity = refreshTokenPort.create(user);
 
         // Write cookies
         ResponseCookie accessTokenCookie = ResponseCookie.from("flowerplus_at", token)
@@ -73,10 +73,10 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
         response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString());
 
-        // Build redirect URL containing both tokens
+        // Redirect WITHOUT tokens in the query string — they are already
+        // delivered via the HttpOnly cookies set above. Query params would
+        // leak into browser history, server access logs, and Referer headers.
         String targetUrl = UriComponentsBuilder.fromUriString(authorizedRedirectUri)
-                .queryParam("token", token)
-                .queryParam("refreshTokenJpaEntity", refreshTokenJpaEntity.getToken())
                 .build().toUriString();
 
         getRedirectStrategy().sendRedirect(request, response, targetUrl);

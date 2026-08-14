@@ -14,7 +14,7 @@ import java.util.UUID;
  * WEB ADAPTER (controller) — OUTSIDE the wall.
  *
  * It depends ONLY on the in-port {@link GetUserUseCase} — an interface —
- * never on the concrete UserService and never on repositories. Its whole job
+ * never on the concrete LoginService and never on repositories. Its whole job
  * is translation: receive an HTTP request, call the port, and turn the
  * returned domain model into a UserResponse DTO.
  *

@@ -3,6 +3,7 @@ package com.lmt.fyp.flowerplus.security.oauth2;
 import com.lmt.fyp.flowerplus.common.AuthProvider;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.UserRole;
+import com.lmt.fyp.flowerplus.common.util.EmailNormalizer;
 import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaEntity;
 import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserProfileJpaEntity;
 import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaRepository;
@@ -51,7 +52,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     @SuppressWarnings("unchecked")
     private OAuth2User processOAuth2User(OAuth2User oAuth2User, AuthProvider provider) {
         Map<String, Object> attributes = oAuth2User.getAttributes();
-        String email = (String) attributes.get("email");
+        String email = EmailNormalizer.normalize((String) attributes.get("email"));
 
         if (!StringUtils.hasText(email)) {
             throw new OAuth2AuthenticationException("Email not found from OAuth2 provider");
@@ -82,7 +83,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     @SuppressWarnings("unchecked")
     private UserJpaEntity registerNewOAuth2User(Map<String, Object> attributes, AuthProvider provider) {
-        String email = (String) attributes.get("email");
+        String email = EmailNormalizer.normalize((String) attributes.get("email"));
         String fullName = (String) attributes.getOrDefault("name", "OAuth2 User");
         String providerId = getProviderId(attributes, provider);
 
