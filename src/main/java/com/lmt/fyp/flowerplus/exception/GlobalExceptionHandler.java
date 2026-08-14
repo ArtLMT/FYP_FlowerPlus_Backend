@@ -2,6 +2,8 @@ package com.lmt.fyp.flowerplus.exception;
 
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.dto.ErrorResponse;
+import com.lmt.fyp.flowerplus.module.auth.application.exception.EmailUsedException;
+import com.lmt.fyp.flowerplus.module.user.application.exception.UserNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -42,6 +44,47 @@ public class GlobalExceptionHandler {
                 .timestamp(Instant.now())
                 .build();
         return new ResponseEntity<>(error, ex.getCode().getStatus());
+    }
+
+    // ------------------------------------------------------------------ //
+    //  1b. Domain/Application exceptions (framework-free core)
+    //      The clean-architecture core throws plain exceptions that know
+    //      nothing about HTTP; the web layer maps them to a response here.
+    // ------------------------------------------------------------------ //
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleUserNotFound(
+            UserNotFoundException ex, HttpServletRequest request) {
+        log.warn("[USER_NOT_FOUND] {} — path={}", ex.getMessage(), request.getRequestURI());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(HttpStatus.NOT_FOUND.value())
+                .errorCode(ErrorCode.USER_NOT_FOUND.name())
+                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(EmailUsedException.class)
+    public ResponseEntity<ErrorResponse> handleEmailUsed(
+            EmailUsedException ex, HttpServletRequest request) {
+        log.warn("[EMAIL_ALREADY_EXISTS] {} — path={}", ex.getMessage(), request.getRequestURI());
+
+        HttpStatus status = ErrorCode.EMAIL_ALREADY_EXISTS.getStatus();
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(status.value())
+                .errorCode(ErrorCode.EMAIL_ALREADY_EXISTS.name())
+                .error(status.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .build();
+        return new ResponseEntity<>(error, status);
     }
 
     // ------------------------------------------------------------------ //

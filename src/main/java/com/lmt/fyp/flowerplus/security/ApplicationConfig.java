@@ -47,7 +47,7 @@ public class ApplicationConfig {
     }
 
     /**
-     * Exposes the AuthenticationManager so AuthService can call authenticate().
+     * Exposes the AuthenticationManager so LoginService can call authenticate().
      */
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {

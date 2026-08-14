@@ -1,4 +1,4 @@
-package com.lmt.fyp.flowerplus.module.auth.dto;
+package com.lmt.fyp.flowerplus.module.auth.web.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;

@@ -1,4 +1,4 @@
-package com.lmt.fyp.flowerplus.module.auth.dto;
+package com.lmt.fyp.flowerplus.module.auth.web.dto;
 
 import jakarta.validation.constraints.*;
 import lombok.Getter;

@@ -1,12 +1,15 @@
-package com.lmt.fyp.flowerplus.module.auth.controller;
+package com.lmt.fyp.flowerplus.module.auth.web.controller;
 
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
-import com.lmt.fyp.flowerplus.module.auth.dto.LoginRequest;
-import com.lmt.fyp.flowerplus.module.auth.dto.RefreshTokenRequest;
-import com.lmt.fyp.flowerplus.module.auth.dto.RegisterRequest;
-import com.lmt.fyp.flowerplus.module.auth.dto.AuthResponse;
-import com.lmt.fyp.flowerplus.module.auth.service.AuthService;
+import com.lmt.fyp.flowerplus.module.auth.web.dto.LoginRequest;
+import com.lmt.fyp.flowerplus.module.auth.web.dto.RefreshTokenRequest;
+import com.lmt.fyp.flowerplus.module.auth.web.dto.RegisterRequest;
+import com.lmt.fyp.flowerplus.module.auth.web.dto.AuthResponse;
+import com.lmt.fyp.flowerplus.module.auth.application.port.in.LoginUseCase;
+import com.lmt.fyp.flowerplus.module.auth.application.port.in.LogoutUseCase;
+import com.lmt.fyp.flowerplus.module.auth.application.port.in.RefreshTokenUseCase;
+import com.lmt.fyp.flowerplus.module.auth.application.port.in.RegisterUseCase;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +27,10 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService authService;
+    private final RegisterUseCase registerUseCase;
+    private final LoginUseCase loginUseCase;
+    private final RefreshTokenUseCase refreshTokenUseCase;
+    private final LogoutUseCase logoutUseCase;
 
     /**
      * POST /api/auth/register
@@ -35,7 +41,7 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest request,
             HttpServletResponse response
     ) {
-        AuthResponse authResponse = authService.register(request);
+        AuthResponse authResponse = registerUseCase.register(request);
         setTokenCookies(response, authResponse);
         return ResponseEntity.ok(authResponse);
     }
@@ -49,7 +55,7 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response
     ) {
-        AuthResponse authResponse = authService.login(request);
+        AuthResponse authResponse = loginUseCase.login(request);
         setTokenCookies(response, authResponse);
         return ResponseEntity.ok(authResponse);
     }
@@ -75,7 +81,7 @@ public class AuthController {
             throw new UnauthorizedException(ErrorCode.REFRESH_TOKEN_INVALID, "Refresh token is missing");
         }
 
-        AuthResponse authResponse = authService.refreshToken(new RefreshTokenRequest(refreshToken));
+        AuthResponse authResponse = refreshTokenUseCase.refreshToken(refreshToken);
         setTokenCookies(response, authResponse);
 
         return ResponseEntity.ok(authResponse);
@@ -99,7 +105,7 @@ public class AuthController {
         }
 
         if (refreshToken != null && !refreshToken.isBlank()) {
-            authService.logout(new RefreshTokenRequest(refreshToken));
+            logoutUseCase.logout(refreshToken);
         }
 
         clearTokenCookies(response);

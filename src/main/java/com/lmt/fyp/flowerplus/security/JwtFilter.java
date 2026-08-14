@@ -8,9 +8,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NullMarked;
 import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsChecker;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -30,6 +33,14 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+
+    /**
+     * Runs the same account-status checks (enabled / non-locked / non-expired)
+     * that DaoAuthenticationProvider applies at login. The filter builds its
+     * Authentication by hand, so without this a banned user with a still-valid
+     * JWT would sail through. Stateless and thread-safe — one shared instance.
+     */
+    private final UserDetailsChecker userDetailsChecker = new AccountStatusUserDetailsChecker();
 
     @Override
     protected void doFilterInternal(
@@ -71,7 +82,11 @@ public class JwtFilter extends OncePerRequestFilter {
             UserDetails userDetails;
             try {
                 userDetails = userDetailsService.loadUserByUsername(username);
-            } catch (UsernameNotFoundException e) {
+                // Reject banned/locked/disabled accounts even with a valid JWT.
+                userDetailsChecker.check(userDetails);
+            } catch (UsernameNotFoundException | AccountStatusException e) {
+                // Leave the context empty; the request falls through to
+                // JwtAuthenticationEntryPoint, which returns the standard 401.
                 filterChain.doFilter(request, response);
                 return;
             }

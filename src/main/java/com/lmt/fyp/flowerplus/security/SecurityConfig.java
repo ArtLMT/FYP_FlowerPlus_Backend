@@ -39,7 +39,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Disable CSRF — stateless JWT APIs don't need it
+                // CSRF disabled. Note this is safe here only because JwtFilter
+                // also accepts the token from the flowerplus_at cookie, which
+                // browsers attach automatically — so the actual cross-site
+                // defense is SameSite=Lax on that cookie, not statelessness.
                 .csrf(csrf -> csrf.disable())
 
                 .authorizeHttpRequests(auth -> auth
