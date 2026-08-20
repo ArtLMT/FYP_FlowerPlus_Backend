@@ -10,6 +10,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -135,6 +138,33 @@ public class GlobalExceptionHandler {
                 .timestamp(Instant.now())
                 .build();
         return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  3b. Spring Security — Account state rejection (blocked before the
+    //      password is even checked, by SecurityUser's UserDetails flags).
+    //
+    //      Without this, both exceptions fall through to the generic handler
+    //      below and a routine, expected rejection is reported as a 500 with a
+    //      full stack trace.
+    // ------------------------------------------------------------------ //
+
+    @ExceptionHandler({LockedException.class, DisabledException.class})
+    public ResponseEntity<ErrorResponse> handleAccountBlocked(
+            AuthenticationException ex, HttpServletRequest request) {
+        log.warn("[ACCOUNT_BLOCKED] {} — path={}", ex.getMessage(), request.getRequestURI());
+
+        HttpStatus status = ErrorCode.ACCOUNT_BLOCKED.getStatus();
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(status.value())
+                .errorCode(ErrorCode.ACCOUNT_BLOCKED.name())
+                .error(status.getReasonPhrase())
+                .message("This account is not permitted to sign in")
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .build();
+        return new ResponseEntity<>(error, status);
     }
 
     // ------------------------------------------------------------------ //

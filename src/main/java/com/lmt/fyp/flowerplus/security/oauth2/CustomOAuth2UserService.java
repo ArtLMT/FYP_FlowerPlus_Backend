@@ -8,11 +8,13 @@ import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaEnti
 import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserProfileJpaEntity;
 import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaRepository;
 import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserProfileJpaRepository;
+import com.lmt.fyp.flowerplus.security.SecurityUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,12 +60,24 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             throw new OAuth2AuthenticationException("Email not found from OAuth2 provider");
         }
 
+        if (Boolean.FALSE.equals(attributes.get("email_verified"))) {
+            throw new OAuth2AuthenticationException("Email not verified by OAuth2 provider");
+        }
+
         Optional<UserJpaEntity> userOptional = userRepository.findByEmail(email);
         UserJpaEntity user;
 
         if (userOptional.isPresent()) {
             user = userOptional.get();
-            // If user already exits DO NOT overide it
+
+            if (SecurityUser.isAuthBlocked(user.getStatus())) {
+                // Carries a stable error code so OAuth2AuthenticationFailureHandler
+                // can tell this apart from any other authentication failure.
+                throw new OAuth2AuthenticationException(
+                        new OAuth2Error(OAuth2AuthenticationFailureHandler.ACCOUNT_BLOCKED),
+                        "Account is not permitted to authenticate");
+            }
+
             if (user.getProvider() == AuthProvider.LOCAL) {
                 return new CustomOAuth2User(user, attributes);
             }
