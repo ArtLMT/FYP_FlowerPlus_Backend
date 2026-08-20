@@ -12,5 +12,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
 
+  # Dev-only fake SMTP server. Catches outgoing mail so nothing is really
+  # sent; view captured emails at http://localhost:8025. Point the app at it
+  # with EMAIL_HOST=localhost / EMAIL_PORT=1025. Never used in production.
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: flowerplus_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+
 volumes:
   postgres_data:

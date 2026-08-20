@@ -6,6 +6,8 @@ import com.lmt.fyp.flowerplus.module.email.domain.model.EmailMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Map;
+
 @Service
 @RequiredArgsConstructor
 public class EmailService implements SendEmailUseCase{
@@ -16,8 +18,8 @@ public class EmailService implements SendEmailUseCase{
         EmailMessage message = EmailMessage.builder()
                 .receiver(email)
                 .subject("Your FlowerPlus verification code")
-                .body("Your verification code is " + otp + ". It expires in 5 minutes.")
-                .isHtml(false)
+                .templateName("email/otp-verification")
+                .variables(Map.of("otp", otp, "expiryMinutes", 5))
                 .build();
 
         emailSenderPort.sendEmail(message);

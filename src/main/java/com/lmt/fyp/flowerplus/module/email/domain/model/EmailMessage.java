@@ -4,12 +4,14 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Map;
+
 @Getter
 @Setter
 @Builder
 public class EmailMessage {
-    private boolean isHtml;
+    private String templateName;
+    private Map<String, Object> variables;
     private String receiver;
     private String subject;
-    private String body;
 }

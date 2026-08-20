@@ -9,12 +9,15 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import jakarta.mail.MessagingException;
 import org.springframework.stereotype.Component;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.spring6.SpringTemplateEngine;
 
 @Component
 @RequiredArgsConstructor
 public class SpringMailAdapter implements EmailSenderPort {
 
     private final JavaMailSender mailSender;
+    private final SpringTemplateEngine templateEngine;
     @Value("${application.mail.from}")
     private String from;
 
@@ -27,7 +30,12 @@ public class SpringMailAdapter implements EmailSenderPort {
             helper.setFrom(from);
             helper.setTo(emailMessage.getReceiver());
             helper.setSubject(emailMessage.getSubject());
-            helper.setText(emailMessage.getBody(), emailMessage.isHtml());
+
+            Context context = new Context();
+            context.setVariables(emailMessage.getVariables());
+            String html = templateEngine.process(emailMessage.getTemplateName(), context);
+
+            helper.setText(html, true);
 
             mailSender.send(mimeMessage);
 
