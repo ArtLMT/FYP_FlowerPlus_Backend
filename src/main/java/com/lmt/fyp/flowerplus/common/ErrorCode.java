@@ -21,6 +21,7 @@ public enum ErrorCode {
     /* ===================== AUTH ===================== */
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "auth.invalidCredentials"),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "auth.unauthenticated"),
+    ACCOUNT_BLOCKED(HttpStatus.FORBIDDEN, "auth.accountBlocked"),
     REFRESH_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "auth.refreshTokenExpired"),
     REFRESH_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "auth.refreshTokenInvalid"),
 
