@@ -18,7 +18,11 @@ public class EmailEventListener {
     private final TemplateEngine templateEngine;
 
     @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT) // Phase = At which point in Transcational lifecycle that this event listener should run
+    // AFTER_COMMIT so a code is never mailed for a registration that rolled back.
+    // fallbackExecution so the event still fires when there is NO transaction at
+    // all: a plain resend writes nothing to the database, and without this the
+    // listener is skipped silently and the mail simply never arrives.
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onOtpRequested(OtpRequestedEvent event){
         try {
             sendEmailUseCase.sendOTP(event.email(), event.otp());

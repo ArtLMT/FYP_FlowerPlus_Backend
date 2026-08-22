@@ -3,6 +3,9 @@ package com.lmt.fyp.flowerplus.exception;
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.dto.ErrorResponse;
 import com.lmt.fyp.flowerplus.module.auth.application.exception.EmailUsedException;
+import com.lmt.fyp.flowerplus.module.auth.application.exception.OtpAttemptsExceededException;
+import com.lmt.fyp.flowerplus.module.auth.application.exception.OtpInvalidException;
+import com.lmt.fyp.flowerplus.module.auth.application.exception.OtpThrottledException;
 import com.lmt.fyp.flowerplus.module.user.application.exception.UserNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -82,6 +85,43 @@ public class GlobalExceptionHandler {
                 .success(false)
                 .status(status.value())
                 .errorCode(ErrorCode.EMAIL_ALREADY_EXISTS.name())
+                .error(status.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .build();
+        return new ResponseEntity<>(error, status);
+    }
+
+    /**
+     * OTP rejections. All three are routine, expected outcomes of a public
+     * endpoint, so they are mapped here rather than being left to the catch-all
+     * below, which would report a mistyped code as a 500 with a stack trace.
+     *
+     * <p>Grouped like {@code handleAccountBlocked}: one method, one shape of
+     * response, with only the error code varying.
+     */
+    @ExceptionHandler({
+            OtpInvalidException.class,
+            OtpAttemptsExceededException.class,
+            OtpThrottledException.class
+    })
+    public ResponseEntity<ErrorResponse> handleOtpFailure(
+            RuntimeException ex, HttpServletRequest request) {
+
+        ErrorCode code = switch (ex) {
+            case OtpAttemptsExceededException ignored -> ErrorCode.OTP_ATTEMPTS_EXCEEDED;
+            case OtpThrottledException ignored -> ErrorCode.OTP_THROTTLED;
+            default -> ErrorCode.OTP_INVALID;
+        };
+
+        log.warn("[{}] {} — path={}", code.name(), ex.getMessage(), request.getRequestURI());
+
+        HttpStatus status = code.getStatus();
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(status.value())
+                .errorCode(code.name())
                 .error(status.getReasonPhrase())
                 .message(ex.getMessage())
                 .path(request.getRequestURI())
