@@ -15,7 +15,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -189,9 +188,9 @@ public class GlobalExceptionHandler {
     //      full stack trace.
     // ------------------------------------------------------------------ //
 
-    @ExceptionHandler({LockedException.class, DisabledException.class})
+    @ExceptionHandler(LockedException.class)
     public ResponseEntity<ErrorResponse> handleAccountBlocked(
-            AuthenticationException ex, HttpServletRequest request) {
+            LockedException ex, HttpServletRequest request) {
         log.warn("[ACCOUNT_BLOCKED] {} — path={}", ex.getMessage(), request.getRequestURI());
 
         HttpStatus status = ErrorCode.ACCOUNT_BLOCKED.getStatus();
@@ -201,6 +200,29 @@ public class GlobalExceptionHandler {
                 .errorCode(ErrorCode.ACCOUNT_BLOCKED.name())
                 .error(status.getReasonPhrase())
                 .message("This account is not permitted to sign in")
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .build();
+        return new ResponseEntity<>(error, status);
+    }
+
+    /**
+     * A PENDING (email-unverified) account failing the {@code isEnabled} check.
+     * Split out from the locked/banned case above so the user is told to verify
+     * their email rather than that their account is blocked.
+     */
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ErrorResponse> handleAccountNotVerified(
+            DisabledException ex, HttpServletRequest request) {
+        log.warn("[ACCOUNT_NOT_VERIFIED] {} — path={}", ex.getMessage(), request.getRequestURI());
+
+        HttpStatus status = ErrorCode.ACCOUNT_NOT_VERIFIED.getStatus();
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(status.value())
+                .errorCode(ErrorCode.ACCOUNT_NOT_VERIFIED.name())
+                .error(status.getReasonPhrase())
+                .message("Please verify your email before signing in. Check your inbox for the code.")
                 .path(request.getRequestURI())
                 .timestamp(Instant.now())
                 .build();

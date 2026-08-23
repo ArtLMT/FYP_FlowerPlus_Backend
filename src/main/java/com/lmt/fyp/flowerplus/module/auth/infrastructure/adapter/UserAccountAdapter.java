@@ -36,4 +36,9 @@ public class UserAccountAdapter implements UserAccountPort {
     public UserProfileJpaEntity saveProfile(UserProfileJpaEntity profile) {
         return userProfileJpaRepository.save(profile);
     }
+
+    @Override
+    public Optional<UserProfileJpaEntity> findProfileByUser(UserJpaEntity user) {
+        return userProfileJpaRepository.findByUser(user);
+    }
 }

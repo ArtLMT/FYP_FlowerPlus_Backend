@@ -5,12 +5,11 @@ import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.UserRole;
 import com.lmt.fyp.flowerplus.common.util.EmailNormalizer;
 import com.lmt.fyp.flowerplus.module.auth.application.exception.EmailUsedException;
+import com.lmt.fyp.flowerplus.module.auth.application.port.in.IssueOtpUseCase;
 import com.lmt.fyp.flowerplus.module.auth.application.port.in.RegisterUseCase;
 import com.lmt.fyp.flowerplus.module.auth.application.port.out.PasswordEncoderPort;
-import com.lmt.fyp.flowerplus.module.auth.application.port.out.RefreshTokenPort;
-import com.lmt.fyp.flowerplus.module.auth.application.port.out.TokenIssuerPort;
 import com.lmt.fyp.flowerplus.module.auth.application.port.out.UserAccountPort;
-import com.lmt.fyp.flowerplus.module.auth.web.dto.AuthResponse;
+import com.lmt.fyp.flowerplus.module.auth.web.dto.RegisterResponse;
 import com.lmt.fyp.flowerplus.module.auth.web.dto.RegisterRequest;
 import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaEntity;
 import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserProfileJpaEntity;
@@ -18,22 +17,40 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 public class RegisterService implements RegisterUseCase {
 
     private final UserAccountPort userAccountPort;
     private final PasswordEncoderPort passwordEncoderPort;
-    private final TokenIssuerPort tokenIssuerPort;
-    private final RefreshTokenPort refreshTokenPort;
+    private final IssueOtpUseCase issueOtpUseCase;
 
     @Override
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public RegisterResponse register(RegisterRequest request) {
         String email = EmailNormalizer.normalize(request.getEmail());
 
-        if (userAccountPort.existsByEmail(email)) {
-            throw new EmailUsedException("Email already registered: " + email);
+        Optional<UserJpaEntity> userAccount = userAccountPort.findByEmail(email);
+
+        if (userAccount.isPresent()) {
+            UserJpaEntity user = userAccount.get();
+            if (user.getStatus() == UserAccountStatus.ACTIVE) {
+                throw new EmailUsedException("Email already registered");
+            } else if (user.getStatus() == UserAccountStatus.PENDING) {
+                 user.setPassword(passwordEncoderPort.hash(request.getPassword()));
+
+                 Optional<UserProfileJpaEntity> updatedProfile = userAccountPort.findProfileByUser(user);
+                 updatedProfile.ifPresent(profile -> profile.setFullName(request.getFullName()));
+                 userAccountPort.save(user);
+
+                 issueOtpUseCase.issueOTP(email);
+
+                 return RegisterResponse.builder()
+                         .message("Please check your email")
+                         .build();
+            }
         }
 
         UserJpaEntity user = UserJpaEntity.builder()
@@ -41,7 +58,7 @@ public class RegisterService implements RegisterUseCase {
                 .email(email)
                 .password(passwordEncoderPort.hash(request.getPassword()))
                 .role(UserRole.CUSTOMER)
-                .status(UserAccountStatus.ACTIVE)
+                .status(UserAccountStatus.PENDING)
                 .provider(AuthProvider.LOCAL)
                 .build();
 
@@ -52,9 +69,10 @@ public class RegisterService implements RegisterUseCase {
                 .fullName(request.getFullName())
                 .build());
 
-        return AuthResponse.builder()
-                .accessToken(tokenIssuerPort.issueAccessToken(savedUser))
-                .refreshToken(refreshTokenPort.create(savedUser).getToken())
+        issueOtpUseCase.issueOTP(email);
+
+        return RegisterResponse.builder()
+                .message("Please check your email")
                 .build();
     }
 
