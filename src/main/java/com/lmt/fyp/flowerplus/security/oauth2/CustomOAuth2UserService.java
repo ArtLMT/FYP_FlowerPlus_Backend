@@ -70,6 +70,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         if (userOptional.isPresent()) {
             user = userOptional.get();
 
+            if (user.getStatus() == UserAccountStatus.PENDING) {
+                user.setStatus(UserAccountStatus.ACTIVE);
+            }
+
             if (SecurityUser.isAuthBlocked(user.getStatus())) {
                 // Carries a stable error code so OAuth2AuthenticationFailureHandler
                 // can tell this apart from any other authentication failure.

@@ -2,14 +2,8 @@ package com.lmt.fyp.flowerplus.module.auth.web.controller;
 
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
-import com.lmt.fyp.flowerplus.module.auth.web.dto.LoginRequest;
-import com.lmt.fyp.flowerplus.module.auth.web.dto.RefreshTokenRequest;
-import com.lmt.fyp.flowerplus.module.auth.web.dto.RegisterRequest;
-import com.lmt.fyp.flowerplus.module.auth.web.dto.AuthResponse;
-import com.lmt.fyp.flowerplus.module.auth.application.port.in.LoginUseCase;
-import com.lmt.fyp.flowerplus.module.auth.application.port.in.LogoutUseCase;
-import com.lmt.fyp.flowerplus.module.auth.application.port.in.RefreshTokenUseCase;
-import com.lmt.fyp.flowerplus.module.auth.application.port.in.RegisterUseCase;
+import com.lmt.fyp.flowerplus.module.auth.application.port.in.*;
+import com.lmt.fyp.flowerplus.module.auth.web.dto.*;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,19 +25,20 @@ public class AuthController {
     private final LoginUseCase loginUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
     private final LogoutUseCase logoutUseCase;
+    private final ResendOtpUseCase resendOtpUseCase;
+    private final VerifyEmailUseCase verifyEmailUseCase;
 
     /**
      * POST /api/auth/register
      * Creates a new user account and returns access + refresh tokens.
      */
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(
+    public ResponseEntity<RegisterResponse> register(
             @Valid @RequestBody RegisterRequest request,
             HttpServletResponse response
     ) {
-        AuthResponse authResponse = registerUseCase.register(request);
-        setTokenCookies(response, authResponse);
-        return ResponseEntity.ok(authResponse);
+        RegisterResponse registerResponse = registerUseCase.register(request);
+        return ResponseEntity.ok(registerResponse);
     }
 
     /**
@@ -110,6 +105,30 @@ public class AuthController {
 
         clearTokenCookies(response);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * POST /api/auth/resend-otp
+     * Re-issues a verification code to a still-pending account. Always 204:
+     * the response is identical whether or not a code was sent, so it can't be
+     * used to tell which emails are registered.
+     */
+    @PostMapping("/resend-otp")
+    public ResponseEntity<Void> resendOtp(
+            @Valid @RequestBody ResendOtpRequest request
+    ) {
+        resendOtpUseCase.resend(request.getEmail());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<AuthResponse> verifyEmail(
+            @Valid @RequestBody VerifyOtpRequest request,
+            HttpServletResponse response
+    ) {
+        AuthResponse authResponse = verifyEmailUseCase.verifyEmail(request.getEmail(), request.getCode());
+        setTokenCookies(response, authResponse);
+        return ResponseEntity.ok(authResponse);
     }
 
     private void setTokenCookies(HttpServletResponse response, AuthResponse authResponse) {

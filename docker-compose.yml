@@ -12,6 +12,20 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
 
+  # Key-value store backing the OTP codes and (later) guest/user carts.
+  # Pinned to 8.2 rather than :latest — it is the current line with the
+  # longest security-support window, and pinning keeps builds reproducible.
+  # appendonly writes an AOF to /data so the volume survives a restart.
+  redis:
+    image: redis:8.2-alpine
+    container_name: flowerplus_redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
   # Dev-only fake SMTP server. Catches outgoing mail so nothing is really
   # sent; view captured emails at http://localhost:8025. Point the app at it
   # with EMAIL_HOST=localhost / EMAIL_PORT=1025. Never used in production.
@@ -25,3 +39,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

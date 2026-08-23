@@ -3,6 +3,9 @@ package com.lmt.fyp.flowerplus.exception;
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.dto.ErrorResponse;
 import com.lmt.fyp.flowerplus.module.auth.application.exception.EmailUsedException;
+import com.lmt.fyp.flowerplus.module.auth.application.exception.OtpAttemptsExceededException;
+import com.lmt.fyp.flowerplus.module.auth.application.exception.OtpInvalidException;
+import com.lmt.fyp.flowerplus.module.auth.application.exception.OtpThrottledException;
 import com.lmt.fyp.flowerplus.module.user.application.exception.UserNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +15,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -90,6 +92,43 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, status);
     }
 
+    /**
+     * OTP rejections. All three are routine, expected outcomes of a public
+     * endpoint, so they are mapped here rather than being left to the catch-all
+     * below, which would report a mistyped code as a 500 with a stack trace.
+     *
+     * <p>Grouped like {@code handleAccountBlocked}: one method, one shape of
+     * response, with only the error code varying.
+     */
+    @ExceptionHandler({
+            OtpInvalidException.class,
+            OtpAttemptsExceededException.class,
+            OtpThrottledException.class
+    })
+    public ResponseEntity<ErrorResponse> handleOtpFailure(
+            RuntimeException ex, HttpServletRequest request) {
+
+        ErrorCode code = switch (ex) {
+            case OtpAttemptsExceededException ignored -> ErrorCode.OTP_ATTEMPTS_EXCEEDED;
+            case OtpThrottledException ignored -> ErrorCode.OTP_THROTTLED;
+            default -> ErrorCode.OTP_INVALID;
+        };
+
+        log.warn("[{}] {} — path={}", code.name(), ex.getMessage(), request.getRequestURI());
+
+        HttpStatus status = code.getStatus();
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(status.value())
+                .errorCode(code.name())
+                .error(status.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .build();
+        return new ResponseEntity<>(error, status);
+    }
+
     // ------------------------------------------------------------------ //
     //  2. Bean Validation Failures (@Valid / @Validated)
     // ------------------------------------------------------------------ //
@@ -149,9 +188,9 @@ public class GlobalExceptionHandler {
     //      full stack trace.
     // ------------------------------------------------------------------ //
 
-    @ExceptionHandler({LockedException.class, DisabledException.class})
+    @ExceptionHandler(LockedException.class)
     public ResponseEntity<ErrorResponse> handleAccountBlocked(
-            AuthenticationException ex, HttpServletRequest request) {
+            LockedException ex, HttpServletRequest request) {
         log.warn("[ACCOUNT_BLOCKED] {} — path={}", ex.getMessage(), request.getRequestURI());
 
         HttpStatus status = ErrorCode.ACCOUNT_BLOCKED.getStatus();
@@ -161,6 +200,29 @@ public class GlobalExceptionHandler {
                 .errorCode(ErrorCode.ACCOUNT_BLOCKED.name())
                 .error(status.getReasonPhrase())
                 .message("This account is not permitted to sign in")
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .build();
+        return new ResponseEntity<>(error, status);
+    }
+
+    /**
+     * A PENDING (email-unverified) account failing the {@code isEnabled} check.
+     * Split out from the locked/banned case above so the user is told to verify
+     * their email rather than that their account is blocked.
+     */
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ErrorResponse> handleAccountNotVerified(
+            DisabledException ex, HttpServletRequest request) {
+        log.warn("[ACCOUNT_NOT_VERIFIED] {} — path={}", ex.getMessage(), request.getRequestURI());
+
+        HttpStatus status = ErrorCode.ACCOUNT_NOT_VERIFIED.getStatus();
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(status.value())
+                .errorCode(ErrorCode.ACCOUNT_NOT_VERIFIED.name())
+                .error(status.getReasonPhrase())
+                .message("Please verify your email before signing in. Check your inbox for the code.")
                 .path(request.getRequestURI())
                 .timestamp(Instant.now())
                 .build();

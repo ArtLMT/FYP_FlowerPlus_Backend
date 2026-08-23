@@ -14,4 +14,6 @@ public interface UserAccountPort {
     UserJpaEntity save(UserJpaEntity user);
 
     UserProfileJpaEntity saveProfile(UserProfileJpaEntity profile);
+
+    Optional<UserProfileJpaEntity> findProfileByUser(UserJpaEntity user);
 }
