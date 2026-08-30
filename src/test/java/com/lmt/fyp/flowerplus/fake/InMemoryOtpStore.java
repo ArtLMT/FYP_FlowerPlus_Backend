@@ -1,6 +1,6 @@
 package com.lmt.fyp.flowerplus.fake;
 
-import com.lmt.fyp.flowerplus.module.auth.application.port.out.OtpStorePort;
+import com.lmt.fyp.flowerplus.module.auth.service.OtpStore;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class InMemoryOtpStore implements OtpStorePort {
+public class InMemoryOtpStore implements OtpStore {
 
     private static class OtpEntry {
         final String codeHash;

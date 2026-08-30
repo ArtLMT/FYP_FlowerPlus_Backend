@@ -2,11 +2,11 @@ package com.lmt.fyp.flowerplus.exception;
 
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.dto.ErrorResponse;
-import com.lmt.fyp.flowerplus.module.auth.application.exception.EmailUsedException;
-import com.lmt.fyp.flowerplus.module.auth.application.exception.OtpAttemptsExceededException;
-import com.lmt.fyp.flowerplus.module.auth.application.exception.OtpInvalidException;
-import com.lmt.fyp.flowerplus.module.auth.application.exception.OtpThrottledException;
-import com.lmt.fyp.flowerplus.module.user.application.exception.UserNotFoundException;
+import com.lmt.fyp.flowerplus.module.auth.exception.EmailUsedException;
+import com.lmt.fyp.flowerplus.module.auth.exception.OtpAttemptsExceededException;
+import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
+import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
+import com.lmt.fyp.flowerplus.module.user.exception.UserNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

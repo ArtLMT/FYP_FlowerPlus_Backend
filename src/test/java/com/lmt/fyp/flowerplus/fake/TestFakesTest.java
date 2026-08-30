@@ -1,7 +1,7 @@
 package com.lmt.fyp.flowerplus.fake;
 
-import com.lmt.fyp.flowerplus.module.auth.application.port.out.OtpStorePort;
-import com.lmt.fyp.flowerplus.module.email.application.port.out.EmailSenderPort;
+import com.lmt.fyp.flowerplus.module.auth.service.OtpStore;
+import com.lmt.fyp.flowerplus.module.email.service.EmailSender;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,10 +15,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TestFakesTest {
 
     @Autowired
-    private OtpStorePort otpStore;
+    private OtpStore otpStore;
 
     @Autowired
-    private EmailSenderPort emailSender;
+    private EmailSender emailSender;
 
     @Autowired
     private InMemoryOtpStore inMemoryOtpStore;

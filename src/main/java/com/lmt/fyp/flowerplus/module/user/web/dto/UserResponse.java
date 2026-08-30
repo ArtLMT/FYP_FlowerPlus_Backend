@@ -3,19 +3,16 @@ package com.lmt.fyp.flowerplus.module.user.web.dto;
 import com.lmt.fyp.flowerplus.common.AuthProvider;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.UserRole;
-import com.lmt.fyp.flowerplus.module.user.domain.model.User;
+import com.lmt.fyp.flowerplus.module.user.entity.User;
+import com.lmt.fyp.flowerplus.module.user.entity.UserProfile;
 import lombok.Builder;
 import lombok.Getter;
 
 import java.util.UUID;
 
 /**
- * RESPONSE DTO — OUTSIDE the wall (web layer).
- *
- * This is a DATA holder (nouns/fields), the shape of the JSON we send back.
- * It is a web concern and must NOT leak into the core — the domain model
- * never depends on it. The controller flattens the domain User (+ its nested
- * profile) into this flat wire shape.
+ * RESPONSE DTO (web layer) — the flat JSON shape returned to the client.
+ * The controller flattens the user account and its profile into this shape.
  */
 @Getter
 @Builder
@@ -31,8 +28,8 @@ public class UserResponse {
     private String phone;
     private String avatar;
 
-    /** Translate the DOMAIN model into the wire shape. */
-    public static UserResponse from(User user) {
+    /** Translate the account entity (+ its profile) into the wire shape. */
+    public static UserResponse from(User user, UserProfile profile) {
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -40,9 +37,9 @@ public class UserResponse {
                 .role(user.getRole())
                 .status(user.getStatus())
                 .provider(user.getProvider())
-                .fullName(user.getProfile() != null ? user.getProfile().getFullName() : null)
-                .phone(user.getProfile() != null ? user.getProfile().getPhone() : null)
-                .avatar(user.getProfile() != null ? user.getProfile().getAvatar() : null)
+                .fullName(profile != null ? profile.getFullName() : null)
+                .phone(profile != null ? profile.getPhone() : null)
+                .avatar(profile != null ? profile.getAvatar() : null)
                 .build();
     }
 }

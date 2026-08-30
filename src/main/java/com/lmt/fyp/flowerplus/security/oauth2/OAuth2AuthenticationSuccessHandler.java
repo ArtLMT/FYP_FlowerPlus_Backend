@@ -1,10 +1,10 @@
 package com.lmt.fyp.flowerplus.security.oauth2;
 
-import com.lmt.fyp.flowerplus.module.auth.infrastructure.persistence.RefreshTokenJpaEntity;
-import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaEntity;
+import com.lmt.fyp.flowerplus.module.auth.entity.RefreshToken;
+import com.lmt.fyp.flowerplus.module.user.entity.User;
 import com.lmt.fyp.flowerplus.security.JwtService;
 import com.lmt.fyp.flowerplus.security.SecurityUser;
-import com.lmt.fyp.flowerplus.module.auth.application.port.out.RefreshTokenPort;
+import com.lmt.fyp.flowerplus.module.auth.service.RefreshTokenService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,7 +28,7 @@ import java.io.IOException;
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtService jwtService;
-    private final RefreshTokenPort refreshTokenPort;
+    private final RefreshTokenService refreshTokenService;
 
     @Value("${application.security.oauth2.authorized-redirect-uri:http://localhost:3000/oauth2/redirect}")
     private String authorizedRedirectUri;
@@ -46,12 +46,12 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         }
 
         CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
-        UserJpaEntity user = oAuth2User.getUser();
+        User user = oAuth2User.getUser();
 
         // Generate JWT token and Refresh token for the local user account.
         // The entity is no longer a UserDetails, so wrap it for JWT generation.
         String token = jwtService.generateToken(SecurityUser.fromEntity(user));
-        RefreshTokenJpaEntity refreshTokenJpaEntity = refreshTokenPort.create(user);
+        RefreshToken refreshToken = refreshTokenService.create(user);
 
         // Write cookies
         ResponseCookie accessTokenCookie = ResponseCookie.from("flowerplus_at", token)
@@ -62,7 +62,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 .sameSite("Lax")
                 .build();
 
-        ResponseCookie refreshTokenCookie = ResponseCookie.from("flowerplus_rt", refreshTokenJpaEntity.getToken())
+        ResponseCookie refreshTokenCookie = ResponseCookie.from("flowerplus_rt", refreshToken.getToken())
                 .httpOnly(true)
                 .secure(false)
                 .path("/")

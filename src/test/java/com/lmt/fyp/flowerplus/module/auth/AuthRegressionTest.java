@@ -8,16 +8,16 @@ import com.lmt.fyp.flowerplus.common.UserRole;
 import com.lmt.fyp.flowerplus.fake.InMemoryOtpStore;
 import com.lmt.fyp.flowerplus.fake.NoOpEmailSender;
 import com.lmt.fyp.flowerplus.fake.TestFakesConfig;
-import com.lmt.fyp.flowerplus.module.auth.infrastructure.persistence.RefreshTokenJpaRepository;
+import com.lmt.fyp.flowerplus.module.auth.repository.RefreshTokenRepository;
 import com.lmt.fyp.flowerplus.module.auth.web.dto.LoginRequest;
 import com.lmt.fyp.flowerplus.module.auth.web.dto.RegisterRequest;
 import com.lmt.fyp.flowerplus.module.auth.web.dto.ResendOtpRequest;
 import com.lmt.fyp.flowerplus.module.auth.web.dto.VerifyOtpRequest;
-import com.lmt.fyp.flowerplus.module.email.domain.model.EmailMessage;
-import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaEntity;
-import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaRepository;
-import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserProfileJpaEntity;
-import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserProfileJpaRepository;
+import com.lmt.fyp.flowerplus.module.email.service.EmailMessage;
+import com.lmt.fyp.flowerplus.module.user.entity.User;
+import com.lmt.fyp.flowerplus.module.user.entity.UserProfile;
+import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
+import com.lmt.fyp.flowerplus.module.user.repository.UserProfileRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,13 +74,13 @@ class AuthRegressionTest {
     private NoOpEmailSender noOpEmailSender;
 
     @Autowired
-    private UserJpaRepository userRepository;
+    private UserRepository userRepository;
 
     @Autowired
-    private UserProfileJpaRepository userProfileRepository;
+    private UserProfileRepository userProfileRepository;
 
     @Autowired
-    private RefreshTokenJpaRepository refreshTokenRepository;
+    private RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -115,7 +115,7 @@ class AuthRegressionTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Please check your email"));
 
-        UserJpaEntity createdUser = userRepository.findByEmail(email).orElseThrow();
+        User createdUser = userRepository.findByEmail(email).orElseThrow();
         assertThat(createdUser.getStatus()).isEqualTo(UserAccountStatus.PENDING);
 
         // ------------------------------------------------------------------ //
@@ -185,7 +185,7 @@ class AuthRegressionTest {
                 .andExpect(cookie().exists("flowerplus_at"))
                 .andExpect(cookie().exists("flowerplus_rt"));
 
-        UserJpaEntity verifiedUser = userRepository.findByEmail(email).orElseThrow();
+        User verifiedUser = userRepository.findByEmail(email).orElseThrow();
         assertThat(verifiedUser.getStatus()).isEqualTo(UserAccountStatus.ACTIVE);
 
         // ------------------------------------------------------------------ //
@@ -283,7 +283,7 @@ class AuthRegressionTest {
         // 11. Login as status variants: SUSPENDED, BANNED, PENDING
         // ------------------------------------------------------------------ //
         // SUSPENDED -> succeeds (200)
-        UserJpaEntity suspendedUser = createUser("suspended@example.com", password, UserAccountStatus.SUSPENDED);
+        User suspendedUser = createUser("suspended@example.com", password, UserAccountStatus.SUSPENDED);
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(makeLoginRequest(suspendedUser.getEmail(), password))))
@@ -291,7 +291,7 @@ class AuthRegressionTest {
                 .andExpect(jsonPath("$.flowerplus_at").isNotEmpty());
 
         // BANNED -> 403 (ACCOUNT_BLOCKED via LockedException)
-        UserJpaEntity bannedUser = createUser("banned@example.com", password, UserAccountStatus.BANNED);
+        User bannedUser = createUser("banned@example.com", password, UserAccountStatus.BANNED);
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(makeLoginRequest(bannedUser.getEmail(), password))))
@@ -299,7 +299,7 @@ class AuthRegressionTest {
                 .andExpect(jsonPath("$.errorCode").value("ACCOUNT_BLOCKED"));
 
         // PENDING -> 403 (ACCOUNT_NOT_VERIFIED via DisabledException)
-        UserJpaEntity pendingUser = createUser("pending@example.com", password, UserAccountStatus.PENDING);
+        User pendingUser = createUser("pending@example.com", password, UserAccountStatus.PENDING);
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(makeLoginRequest(pendingUser.getEmail(), password))))
@@ -347,8 +347,8 @@ class AuthRegressionTest {
         return req;
     }
 
-    private UserJpaEntity createUser(String email, String rawPassword, UserAccountStatus status) {
-        UserJpaEntity user = UserJpaEntity.builder()
+    private User createUser(String email, String rawPassword, UserAccountStatus status) {
+        User user = User.builder()
                 .username(email)
                 .email(email)
                 .password(passwordEncoder.encode(rawPassword))
@@ -356,9 +356,9 @@ class AuthRegressionTest {
                 .status(status)
                 .provider(AuthProvider.LOCAL)
                 .build();
-        UserJpaEntity savedUser = userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
-        userProfileRepository.save(UserProfileJpaEntity.builder()
+        userProfileRepository.save(UserProfile.builder()
                 .user(savedUser)
                 .fullName("User " + status.name())
                 .build());
