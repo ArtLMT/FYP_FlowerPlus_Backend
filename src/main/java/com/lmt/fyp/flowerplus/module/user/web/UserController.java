@@ -1,6 +1,8 @@
 package com.lmt.fyp.flowerplus.module.user.web;
 
-import com.lmt.fyp.flowerplus.module.user.application.port.in.GetUserUseCase;
+import com.lmt.fyp.flowerplus.module.user.entity.User;
+import com.lmt.fyp.flowerplus.module.user.entity.UserProfile;
+import com.lmt.fyp.flowerplus.module.user.service.UserService;
 import com.lmt.fyp.flowerplus.module.user.web.dto.UserResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,25 +13,20 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 /**
- * WEB ADAPTER (controller) — OUTSIDE the wall.
- *
- * It depends ONLY on the in-port {@link GetUserUseCase} — an interface —
- * never on the concrete LoginService and never on repositories. Its whole job
- * is translation: receive an HTTP request, call the port, and turn the
- * returned domain model into a UserResponse DTO.
- *
- * This endpoint is NOT whitelisted in SecurityConfig, so it requires a valid
- * JWT — a realistic protected route.
+ * Protected user endpoints — requires a valid JWT (not whitelisted in
+ * SecurityConfig). Maps the service's entities into a wire-shaped DTO.
  */
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
 
-    private final GetUserUseCase getUserUseCase;
+    private final UserService userService;
 
     @GetMapping("/{id}")
     public UserResponse getUserById(@PathVariable UUID id) {
-        return UserResponse.from(getUserUseCase.getUserById(id));
+        User user = userService.getUserById(id);
+        UserProfile profile = userService.getProfile(user);
+        return UserResponse.from(user, profile);
     }
 }

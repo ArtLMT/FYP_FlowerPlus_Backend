@@ -2,7 +2,7 @@ package com.lmt.fyp.flowerplus.security;
 
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.UserRole;
-import com.lmt.fyp.flowerplus.module.user.infrastructure.persistence.UserJpaEntity;
+import com.lmt.fyp.flowerplus.module.user.entity.User;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -13,14 +13,9 @@ import java.util.List;
 /**
  * SPRING SECURITY PRINCIPAL — a security-layer adapter.
  *
- * This class holds the UserDetails responsibility that used to live ON the
- * User entity. Keeping it here means:
- *   - the persistence entity stays a plain data object, and
- *   - the domain model never learns what "authorities" or "credentials
- *     non-expired" mean.
- *
- * Spring Security depends on THIS; the rest of the app depends on the domain
- * model. That is the separation the refactor is about.
+ * Holds the UserDetails responsibility so the persistence entity stays a plain
+ * data object. Spring Security depends on THIS; the rest of the app depends on
+ * the entity.
  */
 public class SecurityUser implements UserDetails {
 
@@ -37,7 +32,7 @@ public class SecurityUser implements UserDetails {
     }
 
     /** Build a security principal from a persistence entity. */
-    public static SecurityUser fromEntity(UserJpaEntity user) {
+    public static SecurityUser fromEntity(User user) {
         return new SecurityUser(user.getEmail(), user.getPassword(), user.getRole(), user.getStatus());
     }
 

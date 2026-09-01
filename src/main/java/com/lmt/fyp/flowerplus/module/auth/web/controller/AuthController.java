@@ -2,7 +2,9 @@ package com.lmt.fyp.flowerplus.module.auth.web.controller;
 
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
-import com.lmt.fyp.flowerplus.module.auth.application.port.in.*;
+import com.lmt.fyp.flowerplus.module.auth.service.AuthService;
+import com.lmt.fyp.flowerplus.module.auth.service.EmailVerificationService;
+import com.lmt.fyp.flowerplus.module.auth.service.TokenPair;
 import com.lmt.fyp.flowerplus.module.auth.web.dto.*;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -21,24 +23,26 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final RegisterUseCase registerUseCase;
-    private final LoginUseCase loginUseCase;
-    private final RefreshTokenUseCase refreshTokenUseCase;
-    private final LogoutUseCase logoutUseCase;
-    private final ResendOtpUseCase resendOtpUseCase;
-    private final VerifyEmailUseCase verifyEmailUseCase;
+    private static final String ACCESS_TOKEN_COOKIE = "flowerplus_at";
+    private static final String REFRESH_TOKEN_COOKIE = "flowerplus_rt";
+    private static final long ACCESS_TOKEN_MAX_AGE = 86400;   // 24 hours
+    private static final long REFRESH_TOKEN_MAX_AGE = 604800; // 7 days
+
+    private final AuthService authService;
+    private final EmailVerificationService emailVerificationService;
 
     /**
      * POST /api/auth/register
-     * Creates a new user account and returns access + refresh tokens.
+     * Creates a pending account and mails a verification code. Deliberately
+     * returns no tokens — the account is not usable until it is verified.
      */
     @PostMapping("/register")
-    public ResponseEntity<RegisterResponse> register(
-            @Valid @RequestBody RegisterRequest request,
-            HttpServletResponse response
-    ) {
-        RegisterResponse registerResponse = registerUseCase.register(request);
-        return ResponseEntity.ok(registerResponse);
+    public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
+        authService.register(request.getEmail(), request.getPassword(), request.getFullName());
+
+        return ResponseEntity.ok(RegisterResponse.builder()
+                .message("Please check your email")
+                .build());
     }
 
     /**
@@ -50,9 +54,8 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response
     ) {
-        AuthResponse authResponse = loginUseCase.login(request);
-        setTokenCookies(response, authResponse);
-        return ResponseEntity.ok(authResponse);
+        TokenPair tokens = authService.login(request.getEmail(), request.getPassword());
+        return respondWithTokens(tokens, response);
     }
 
     /**
@@ -62,45 +65,33 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(
             @RequestBody(required = false) RefreshTokenRequest requestBody,
-            @CookieValue(name = "flowerplus_rt", required = false) String refreshTokenCookie,
+            @CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshTokenCookie,
             HttpServletResponse response
     ) {
-        String refreshToken = null;
-        if (refreshTokenCookie != null) {
-            refreshToken = refreshTokenCookie;
-        } else if (requestBody != null) {
-            refreshToken = requestBody.getRefreshToken();
-        }
+        String refreshToken = resolveRefreshToken(requestBody, refreshTokenCookie);
 
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new UnauthorizedException(ErrorCode.REFRESH_TOKEN_INVALID, "Refresh token is missing");
         }
 
-        AuthResponse authResponse = refreshTokenUseCase.refreshToken(refreshToken);
-        setTokenCookies(response, authResponse);
-
-        return ResponseEntity.ok(authResponse);
+        TokenPair tokens = authService.refresh(refreshToken);
+        return respondWithTokens(tokens, response);
     }
 
     /**
      * POST /api/auth/logout
-     * Revokes/invalidates a refresh token.
+     * Revokes the refresh token and clears both cookies.
      */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
             @RequestBody(required = false) RefreshTokenRequest requestBody,
-            @CookieValue(name = "flowerplus_rt", required = false) String refreshTokenCookie,
+            @CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshTokenCookie,
             HttpServletResponse response
     ) {
-        String refreshToken = null;
-        if (refreshTokenCookie != null) {
-            refreshToken = refreshTokenCookie;
-        } else if (requestBody != null) {
-            refreshToken = requestBody.getRefreshToken();
-        }
+        String refreshToken = resolveRefreshToken(requestBody, refreshTokenCookie);
 
         if (refreshToken != null && !refreshToken.isBlank()) {
-            logoutUseCase.logout(refreshToken);
+            authService.logout(refreshToken);
         }
 
         clearTokenCookies(response);
@@ -110,14 +101,12 @@ public class AuthController {
     /**
      * POST /api/auth/resend-otp
      * Re-issues a verification code to a still-pending account. Always 204:
-     * the response is identical whether or not a code was sent, so it can't be
+     * the response is identical whether or not a code was sent, so it cannot be
      * used to tell which emails are registered.
      */
     @PostMapping("/resend-otp")
-    public ResponseEntity<Void> resendOtp(
-            @Valid @RequestBody ResendOtpRequest request
-    ) {
-        resendOtpUseCase.resend(request.getEmail());
+    public ResponseEntity<Void> resendOtp(@Valid @RequestBody ResendOtpRequest request) {
+        emailVerificationService.resend(request.getEmail());
         return ResponseEntity.noContent().build();
     }
 
@@ -126,50 +115,49 @@ public class AuthController {
             @Valid @RequestBody VerifyOtpRequest request,
             HttpServletResponse response
     ) {
-        AuthResponse authResponse = verifyEmailUseCase.verifyEmail(request.getEmail(), request.getCode());
-        setTokenCookies(response, authResponse);
-        return ResponseEntity.ok(authResponse);
+        TokenPair tokens = emailVerificationService.verifyEmail(request.getEmail(), request.getCode());
+        return respondWithTokens(tokens, response);
     }
 
-    private void setTokenCookies(HttpServletResponse response, AuthResponse authResponse) {
-        ResponseCookie accessTokenCookie = ResponseCookie.from("flowerplus_at", authResponse.getAccessToken())
-                .httpOnly(true)
-                .secure(false) // Set to true in production/HTTPS
-                .path("/")
-                .maxAge(86400) // 24 hours
-                .sameSite("Lax")
-                .build();
+    /**
+     * The refresh token may arrive in the cookie or the body; the cookie wins.
+     * Shared by refresh and logout, which resolve it identically.
+     */
+    private String resolveRefreshToken(RefreshTokenRequest requestBody, String refreshTokenCookie) {
+        if (refreshTokenCookie != null) {
+            return refreshTokenCookie;
+        }
+        return requestBody != null ? requestBody.getRefreshToken() : null;
+    }
 
-        ResponseCookie refreshTokenCookie = ResponseCookie.from("flowerplus_rt", authResponse.getRefreshToken())
-                .httpOnly(true)
-                .secure(false)
-                .path("/")
-                .maxAge(604800) // 7 days
-                .sameSite("Lax")
-                .build();
+    private ResponseEntity<AuthResponse> respondWithTokens(TokenPair tokens, HttpServletResponse response) {
+        setTokenCookies(response, tokens);
 
-        response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString());
+        return ResponseEntity.ok(AuthResponse.builder()
+                .accessToken(tokens.accessToken())
+                .refreshToken(tokens.refreshToken())
+                .build());
+    }
+
+    private void setTokenCookies(HttpServletResponse response, TokenPair tokens) {
+        addCookie(response, ACCESS_TOKEN_COOKIE, tokens.accessToken(), ACCESS_TOKEN_MAX_AGE);
+        addCookie(response, REFRESH_TOKEN_COOKIE, tokens.refreshToken(), REFRESH_TOKEN_MAX_AGE);
     }
 
     private void clearTokenCookies(HttpServletResponse response) {
-        ResponseCookie deleteAccess = ResponseCookie.from("flowerplus_at", "")
+        addCookie(response, ACCESS_TOKEN_COOKIE, "", 0);
+        addCookie(response, REFRESH_TOKEN_COOKIE, "", 0);
+    }
+
+    private void addCookie(HttpServletResponse response, String name, String value, long maxAge) {
+        ResponseCookie cookie = ResponseCookie.from(name, value)
                 .httpOnly(true)
-                .secure(false)
+                .secure(false) // Set to true in production/HTTPS
                 .path("/")
-                .maxAge(0)
+                .maxAge(maxAge)
                 .sameSite("Lax")
                 .build();
 
-        ResponseCookie deleteRefresh = ResponseCookie.from("flowerplus_rt", "")
-                .httpOnly(true)
-                .secure(false)
-                .path("/")
-                .maxAge(0)
-                .sameSite("Lax")
-                .build();
-
-        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccess.toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefresh.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 }
