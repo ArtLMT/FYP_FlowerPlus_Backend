@@ -5,6 +5,5 @@ package com.lmt.fyp.flowerplus.common;
  */
 public enum AuthProvider {
     LOCAL,
-    GOOGLE,
-    FACEBOOK
+    GOOGLE
 }

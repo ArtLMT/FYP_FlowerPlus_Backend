@@ -106,7 +106,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return new CustomOAuth2User(user, attributes);
     }
 
-    @SuppressWarnings("unchecked")
     private User registerNewOAuth2User(Map<String, Object> attributes, AuthProvider provider) {
         String email = EmailNormalizer.normalize((String) attributes.get("email"));
         String fullName = (String) attributes.getOrDefault("name", "OAuth2 User");
@@ -138,17 +137,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         User savedUser = userRepository.save(user);
 
-        // Fetch picture/avatar URL
-        String avatar = (String) attributes.get("picture"); // default Google picture path
-        if (provider == AuthProvider.FACEBOOK) {
-            Map<String, Object> picture = (Map<String, Object>) attributes.get("picture");
-            if (picture != null) {
-                Map<String, Object> data = (Map<String, Object>) picture.get("data");
-                if (data != null) {
-                    avatar = (String) data.get("url");
-                }
-            }
-        }
+        // Google returns the avatar as a plain URL string.
+        String avatar = (String) attributes.get("picture");
 
         UserProfile profile = UserProfile.builder()
                 .user(savedUser)
@@ -162,9 +152,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private String getProviderId(Map<String, Object> attributes, AuthProvider provider) {
         if (provider == AuthProvider.GOOGLE) {
+            // Google's OIDC subject claim is the stable per-user identifier.
             return (String) attributes.get("sub");
-        } else if (provider == AuthProvider.FACEBOOK) {
-            return (String) attributes.get("id");
         }
         return null;
     }
