@@ -8,7 +8,6 @@ import com.lmt.fyp.flowerplus.module.user.entity.User;
 import com.lmt.fyp.flowerplus.module.user.entity.UserProfile;
 import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
 import com.lmt.fyp.flowerplus.module.user.repository.UserProfileRepository;
-import com.lmt.fyp.flowerplus.security.SecurityUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -60,7 +59,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             throw new OAuth2AuthenticationException("Email not found from OAuth2 provider");
         }
 
-        if (Boolean.FALSE.equals(attributes.get("email_verified"))) {
+        if (!Boolean.TRUE.equals(attributes.get("email_verified"))) {
             throw new OAuth2AuthenticationException("Email not verified by OAuth2 provider");
         }
 
@@ -70,11 +69,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         if (userOptional.isPresent()) {
             user = userOptional.get();
 
-            if (user.getStatus() == UserAccountStatus.PENDING) {
-                user.setStatus(UserAccountStatus.ACTIVE);
-            }
-
-            if (SecurityUser.isAuthBlocked(user.getStatus())) {
+            // BANNED is tested explicitly rather than through SecurityUser.isAuthBlocked:
+            // that method covers BANNED *and* PENDING, and this path adopts a PENDING
+            // account below instead of rejecting it. Login and refresh still go through
+            // isAuthBlocked — this is the one deliberate exception to it, so do not
+            // "simplify" this back or the pre-hijack path reopens.
+            if (user.getStatus() == UserAccountStatus.BANNED) {
                 // Carries a stable error code so OAuth2AuthenticationFailureHandler
                 // can tell this apart from any other authentication failure.
                 throw new OAuth2AuthenticationException(
@@ -82,12 +82,19 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                         "Account is not permitted to authenticate");
             }
 
-            if (user.getProvider() == AuthProvider.LOCAL) {
+            if (user.getStatus() == UserAccountStatus.PENDING) {
+                // Adopt PENDING local account: invalidate old squatter password, link provider, activate
+                user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+                user.setProvider(provider);
+                user.setProviderId(getProviderId(attributes, provider));
+                user.setStatus(UserAccountStatus.ACTIVE);
+                user = userRepository.save(user);
+            } else if (user.getProvider() == AuthProvider.LOCAL) {
+                // Safe: only reached by a non-BANNED, non-PENDING account whose email the provider verified,
+                // so there is nothing left to link.
                 return new CustomOAuth2User(user, attributes);
-            }
-
-            // Link provider details if they haven't been linked yet
-            if (user.getProvider() != provider) {
+            } else if (user.getProvider() != provider) {
+                // Link provider details if they haven't been linked yet
                 user.setProvider(provider);
                 user.setProviderId(getProviderId(attributes, provider));
                 user = userRepository.save(user);
