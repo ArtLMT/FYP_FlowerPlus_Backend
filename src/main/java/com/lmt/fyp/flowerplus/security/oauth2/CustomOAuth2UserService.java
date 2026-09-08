@@ -50,7 +50,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return processOAuth2User(oAuth2User, provider);
     }
 
-    @SuppressWarnings("unchecked")
     private OAuth2User processOAuth2User(OAuth2User oAuth2User, AuthProvider provider) {
         Map<String, Object> attributes = oAuth2User.getAttributes();
         String email = EmailNormalizer.normalize((String) attributes.get("email"));
@@ -111,22 +110,13 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String fullName = (String) attributes.getOrDefault("name", "OAuth2 User");
         String providerId = getProviderId(attributes, provider);
 
-        // Generate a unique username from the email prefix
-        String baseUsername = email.split("@")[0];
-        if (baseUsername.length() > 90) {
-            baseUsername = baseUsername.substring(0, 90);
-        }
-        String username = baseUsername;
-        int count = 1;
-        while (userRepository.existsByUsername(username)) {
-            username = baseUsername + "_" + count++;
-        }
-
-        // Generate secure random password since password field cannot be null in database
+        // Username is the email, matching local registration. Email is already
+        // unique, so this needs no separate collision check — the old
+        // prefix-derivation loop was a check-then-act race (N13).
         String randomPassword = UUID.randomUUID().toString();
 
         User user = User.builder()
-                .username(username)
+                .username(email)
                 .email(email)
                 .password(passwordEncoder.encode(randomPassword))
                 .role(UserRole.CUSTOMER)
