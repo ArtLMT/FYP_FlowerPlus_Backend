@@ -36,9 +36,6 @@ public interface UserService {
     /** Creates a PENDING account plus its profile. Email doubles as the username. */
     User createPendingAccount(String email, String hashedPassword, String fullName);
 
-    /** Re-registration onto a still-PENDING account: new password, new profile name. */
-    void resetPendingAccount(User user, String hashedPassword, String fullName);
-
     /** Marks a verified account ACTIVE. Relies on dirty checking inside the caller's transaction. */
     void activate(User user);
 }

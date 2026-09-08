@@ -71,15 +71,6 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void resetPendingAccount(User user, String hashedPassword, String fullName) {
-        user.setPassword(hashedPassword);
-        userProfileRepository.findByUser(user)
-                .ifPresent(profile -> profile.setFullName(fullName));
-        userRepository.save(user);
-    }
-
-    @Override
-    @Transactional
     public void activate(User user) {
         user.setStatus(UserAccountStatus.ACTIVE);
     }

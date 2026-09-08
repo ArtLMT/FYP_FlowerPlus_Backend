@@ -6,6 +6,7 @@ import com.lmt.fyp.flowerplus.common.util.EmailNormalizer;
 import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
 import com.lmt.fyp.flowerplus.module.auth.event.EmailVerifiedEvent;
 import com.lmt.fyp.flowerplus.module.auth.service.EmailVerificationService;
+import com.lmt.fyp.flowerplus.module.auth.service.OtpPurpose;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpService;
 import com.lmt.fyp.flowerplus.module.auth.service.RefreshTokenService;
 import com.lmt.fyp.flowerplus.module.auth.service.TokenPair;
@@ -33,7 +34,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     public TokenPair verifyEmail(String email, String code) {
         String normalizedEmail = EmailNormalizer.normalize(email);
 
-        otpService.verify(normalizedEmail, code);
+        otpService.verify(OtpPurpose.REGISTRATION, normalizedEmail, code);
 
         User user = userService.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new UnauthorizedException(
@@ -45,7 +46,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         // Consume the code only once activation is durably committed. The
         // listener fires AFTER_COMMIT, so if this transaction rolls back the
         // code stays live and the user can retry rather than being stranded.
-        eventPublisher.publishEvent(new EmailVerifiedEvent(normalizedEmail));
+        eventPublisher.publishEvent(new EmailVerifiedEvent(OtpPurpose.REGISTRATION, normalizedEmail));
 
         return new TokenPair(
                 jwtService.generateToken(SecurityUser.fromEntity(user)),
@@ -58,6 +59,6 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
         userService.findByEmail(normalizedEmail)
                 .filter(user -> user.getStatus() == UserAccountStatus.PENDING)
-                .ifPresent(user -> otpService.issueOTP(normalizedEmail));
+                .ifPresent(user -> otpService.issueOTP(OtpPurpose.REGISTRATION, normalizedEmail));
     }
 }
