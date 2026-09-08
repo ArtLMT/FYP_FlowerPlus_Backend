@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -19,6 +20,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -52,9 +54,9 @@ public class GlobalExceptionHandler {
     }
 
     // ------------------------------------------------------------------ //
-    //  1b. Domain/Application exceptions (framework-free core)
-    //      The clean-architecture core throws plain exceptions that know
-    //      nothing about HTTP; the web layer maps them to a response here.
+    //  1b. Module exceptions that carry no HTTP knowledge
+    //      Services throw plain domain exceptions; the web layer maps each to
+    //      its status and response shape here.
     // ------------------------------------------------------------------ //
 
     @ExceptionHandler(UserNotFoundException.class)
@@ -154,6 +156,48 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .timestamp(Instant.now())
                 .validationErrors(errors)
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  2b. Malformed request — bad parameter type or unreadable body
+    //      Both are client mistakes. Left to the catch-all they surface as a
+    //      500 (e.g. GET /api/users/not-a-uuid); they are 400s.
+    // ------------------------------------------------------------------ //
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        log.warn("[VALIDATION_FAILED] parameter '{}' has an invalid value — path={}",
+                ex.getName(), request.getRequestURI());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(HttpStatus.BAD_REQUEST.value())
+                .errorCode(ErrorCode.VALIDATION_FAILED.name())
+                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                // Fixed message: never echo the raw value or the parser's detail.
+                .message("Parameter '" + ex.getName() + "' has an invalid value")
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(
+            HttpMessageNotReadableException ex, HttpServletRequest request) {
+        log.warn("[VALIDATION_FAILED] unreadable request body — path={}", request.getRequestURI());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(HttpStatus.BAD_REQUEST.value())
+                .errorCode(ErrorCode.VALIDATION_FAILED.name())
+                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message("Request body is missing or malformed")
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
                 .build();
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
