@@ -39,12 +39,15 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
 
     /**
-     * noRollbackFor matters here: the expiry path deletes the row and then
-     * throws. Under a plain @Transactional that throw would roll the delete
-     * back, so the expired token would never be cleared by this path.
+     * A pure read: resolves a token to its row, or throws if the token is
+     * unknown, revoked or expired. It does NOT delete the expired row. That
+     * delete never worked — this method runs inside the caller's transaction,
+     * whose readOnly flag suppressed the flush, and the thrown exception rolled
+     * the shared transaction back regardless. Purging expired rows is
+     * TokenCleanupScheduler's job; here we only reject.
      */
     @Override
-    @Transactional(noRollbackFor = UnauthorizedException.class)
+    @Transactional(readOnly = true)
     public RefreshToken verify(String token) {
         RefreshToken refreshToken = refreshTokenRepository.findByToken(token)
                 .orElseThrow(() -> new UnauthorizedException(ErrorCode.REFRESH_TOKEN_INVALID));
@@ -54,7 +57,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         }
 
         if (refreshToken.getExpiryDate().isBefore(Instant.now())) {
-            refreshTokenRepository.delete(refreshToken);
             throw new UnauthorizedException(ErrorCode.REFRESH_TOKEN_EXPIRED);
         }
 
