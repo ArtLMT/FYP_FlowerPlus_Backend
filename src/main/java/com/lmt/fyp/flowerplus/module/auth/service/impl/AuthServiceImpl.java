@@ -45,13 +45,20 @@ public class AuthServiceImpl implements AuthService {
 
         if (existing.isPresent()) {
             User user = existing.get();
-            if (user.getStatus() == UserAccountStatus.ACTIVE) {
-                throw new EmailUsedException("Email already registered");
-            } else if (user.getStatus() == UserAccountStatus.PENDING) {
+
+            // PENDING is the only status that may be re-registered: the account was never verified, so a fresh code and password overwrite it.
+            if (user.getStatus() == UserAccountStatus.PENDING) {
                 userService.resetPendingAccount(user, passwordEncoder.encode(rawPassword), fullName);
                 otpService.issueOTP(normalizedEmail);
                 return;
             }
+
+            // ACTIVE, SUSPENDED or BANNED: an account already owns this email.
+            // All three answer with the same 409 so a caller cannot tell a
+            // banned address apart from an ordinary registered one. Previously
+            // only ACTIVE was handled; the others fell through to a duplicate
+            // INSERT and surfaced as a 500.
+            throw new EmailUsedException("Email already registered");
         }
 
         userService.createPendingAccount(normalizedEmail, passwordEncoder.encode(rawPassword), fullName);
