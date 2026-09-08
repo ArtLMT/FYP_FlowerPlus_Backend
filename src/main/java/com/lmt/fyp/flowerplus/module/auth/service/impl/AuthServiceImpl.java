@@ -88,14 +88,18 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenService.revoke(refreshToken);
     }
 
+    // Not @Transactional: rotate() owns its own transaction (that is what makes
+    // its noRollbackFor reuse-cleanup durable). The user it returns is eagerly
+    // loaded, so reading status/identity here needs no open session.
     @Override
-    @Transactional(readOnly = true)
     public TokenPair refresh(String refreshToken) {
-        RefreshToken stored = refreshTokenService.verify(refreshToken);
+        RefreshToken rotated = refreshTokenService.rotate(refreshToken);
 
         // A revoked account status must invalidate the session immediately,
-        // not wait out the refresh token's remaining lifetime.
-        User user = stored.getUser();
+        // not wait out the refresh token's remaining lifetime. (Edge: a blocked
+        // account's token has already been rotated by this point — the new row
+        // is never returned and is swept as a tombstone; harmless.)
+        User user = rotated.getUser();
         if (SecurityUser.isAuthBlocked(user.getStatus())) {
             throw new UnauthorizedException(
                     ErrorCode.REFRESH_TOKEN_INVALID, "Account is not permitted to refresh");
@@ -103,6 +107,6 @@ public class AuthServiceImpl implements AuthService {
 
         return new TokenPair(
                 jwtService.generateToken(SecurityUser.fromEntity(user)),
-                stored.getToken());
+                rotated.getToken());
     }
 }

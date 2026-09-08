@@ -39,28 +39,45 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
 
     /**
-     * A pure read: resolves a token to its row, or throws if the token is
-     * unknown, revoked or expired. It does NOT delete the expired row. That
-     * delete never worked — this method runs inside the caller's transaction,
-     * whose readOnly flag suppressed the flush, and the thrown exception rolled
-     * the shared transaction back regardless. Purging expired rows is
-     * TokenCleanupScheduler's job; here we only reject.
+     * Validate-and-rotate, all in one transaction.
+     *
+     * <p>noRollbackFor matters and — unlike the old verify() — actually works
+     * here, because this method OWNS its transaction (the refresh use case is no
+     * longer @Transactional, so nothing joins ahead of it). On reuse we delete
+     * the family and then throw; noRollbackFor keeps that delete committed even
+     * though the request is rejected — the delete is the whole point of the
+     * rejection. Expiry is left to TokenCleanupScheduler, as before.
      */
     @Override
-    @Transactional(readOnly = true)
-    public RefreshToken verify(String token) {
-        RefreshToken refreshToken = refreshTokenRepository.findByToken(token)
+    @Transactional(noRollbackFor = UnauthorizedException.class)
+    public RefreshToken rotate(String token) {
+        RefreshToken current = refreshTokenRepository.findByTokenWithUser(token)
                 .orElseThrow(() -> new UnauthorizedException(ErrorCode.REFRESH_TOKEN_INVALID));
 
-        if (refreshToken.isRevoked()) {
+        // Reuse detection: a token already retired (revoked) is being replayed.
+        // Either someone is replaying a rotated token, or a logged-out token was
+        // reused — treat the family as compromised and drop every token the user
+        // holds, forcing a fresh login.
+        if (current.isRevoked()) {
+            refreshTokenRepository.deleteByUser(current.getUser());
             throw new UnauthorizedException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        if (refreshToken.getExpiryDate().isBefore(Instant.now())) {
+        if (current.getExpiryDate().isBefore(Instant.now())) {
             throw new UnauthorizedException(ErrorCode.REFRESH_TOKEN_EXPIRED);
         }
 
-        return refreshToken;
+        // Rotate: retire the presented token and issue a fresh one. The retired
+        // row is kept (revoked) as a tombstone so a later replay is caught above;
+        // TokenCleanupScheduler sweeps it.
+        current.setRevoked(true);
+        refreshTokenRepository.save(current);
+
+        return refreshTokenRepository.save(RefreshToken.builder()
+                .user(current.getUser())
+                .token(UUID.randomUUID().toString())
+                .expiryDate(Instant.now().plusMillis(refreshTokenExpirationMs))
+                .build());
     }
 
     @Override
