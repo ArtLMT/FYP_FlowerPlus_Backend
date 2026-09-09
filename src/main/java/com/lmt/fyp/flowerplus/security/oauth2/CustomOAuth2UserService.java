@@ -8,7 +8,6 @@ import com.lmt.fyp.flowerplus.module.user.entity.User;
 import com.lmt.fyp.flowerplus.module.user.entity.UserProfile;
 import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
 import com.lmt.fyp.flowerplus.module.user.repository.UserProfileRepository;
-import com.lmt.fyp.flowerplus.security.SecurityUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -51,7 +50,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return processOAuth2User(oAuth2User, provider);
     }
 
-    @SuppressWarnings("unchecked")
     private OAuth2User processOAuth2User(OAuth2User oAuth2User, AuthProvider provider) {
         Map<String, Object> attributes = oAuth2User.getAttributes();
         String email = EmailNormalizer.normalize((String) attributes.get("email"));
@@ -60,7 +58,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             throw new OAuth2AuthenticationException("Email not found from OAuth2 provider");
         }
 
-        if (Boolean.FALSE.equals(attributes.get("email_verified"))) {
+        if (!Boolean.TRUE.equals(attributes.get("email_verified"))) {
             throw new OAuth2AuthenticationException("Email not verified by OAuth2 provider");
         }
 
@@ -70,11 +68,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         if (userOptional.isPresent()) {
             user = userOptional.get();
 
-            if (user.getStatus() == UserAccountStatus.PENDING) {
-                user.setStatus(UserAccountStatus.ACTIVE);
-            }
-
-            if (SecurityUser.isAuthBlocked(user.getStatus())) {
+            // BANNED is tested explicitly rather than through SecurityUser.isAuthBlocked:
+            // that method covers BANNED *and* PENDING, and this path adopts a PENDING
+            // account below instead of rejecting it. Login and refresh still go through
+            // isAuthBlocked — this is the one deliberate exception to it, so do not
+            // "simplify" this back or the pre-hijack path reopens.
+            if (user.getStatus() == UserAccountStatus.BANNED) {
                 // Carries a stable error code so OAuth2AuthenticationFailureHandler
                 // can tell this apart from any other authentication failure.
                 throw new OAuth2AuthenticationException(
@@ -82,12 +81,19 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                         "Account is not permitted to authenticate");
             }
 
-            if (user.getProvider() == AuthProvider.LOCAL) {
+            if (user.getStatus() == UserAccountStatus.PENDING) {
+                // Adopt PENDING local account: invalidate old squatter password, link provider, activate
+                user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+                user.setProvider(provider);
+                user.setProviderId(getProviderId(attributes, provider));
+                user.setStatus(UserAccountStatus.ACTIVE);
+                user = userRepository.save(user);
+            } else if (user.getProvider() == AuthProvider.LOCAL) {
+                // Safe: only reached by a non-BANNED, non-PENDING account whose email the provider verified,
+                // so there is nothing left to link.
                 return new CustomOAuth2User(user, attributes);
-            }
-
-            // Link provider details if they haven't been linked yet
-            if (user.getProvider() != provider) {
+            } else if (user.getProvider() != provider) {
+                // Link provider details if they haven't been linked yet
                 user.setProvider(provider);
                 user.setProviderId(getProviderId(attributes, provider));
                 user = userRepository.save(user);
@@ -99,28 +105,18 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         return new CustomOAuth2User(user, attributes);
     }
 
-    @SuppressWarnings("unchecked")
     private User registerNewOAuth2User(Map<String, Object> attributes, AuthProvider provider) {
         String email = EmailNormalizer.normalize((String) attributes.get("email"));
         String fullName = (String) attributes.getOrDefault("name", "OAuth2 User");
         String providerId = getProviderId(attributes, provider);
 
-        // Generate a unique username from the email prefix
-        String baseUsername = email.split("@")[0];
-        if (baseUsername.length() > 90) {
-            baseUsername = baseUsername.substring(0, 90);
-        }
-        String username = baseUsername;
-        int count = 1;
-        while (userRepository.existsByUsername(username)) {
-            username = baseUsername + "_" + count++;
-        }
-
-        // Generate secure random password since password field cannot be null in database
+        // Username is the email, matching local registration. Email is already
+        // unique, so this needs no separate collision check — the old
+        // prefix-derivation loop was a check-then-act race (N13).
         String randomPassword = UUID.randomUUID().toString();
 
         User user = User.builder()
-                .username(username)
+                .username(email)
                 .email(email)
                 .password(passwordEncoder.encode(randomPassword))
                 .role(UserRole.CUSTOMER)
@@ -131,17 +127,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         User savedUser = userRepository.save(user);
 
-        // Fetch picture/avatar URL
-        String avatar = (String) attributes.get("picture"); // default Google picture path
-        if (provider == AuthProvider.FACEBOOK) {
-            Map<String, Object> picture = (Map<String, Object>) attributes.get("picture");
-            if (picture != null) {
-                Map<String, Object> data = (Map<String, Object>) picture.get("data");
-                if (data != null) {
-                    avatar = (String) data.get("url");
-                }
-            }
-        }
+        // Google returns the avatar as a plain URL string.
+        String avatar = (String) attributes.get("picture");
 
         UserProfile profile = UserProfile.builder()
                 .user(savedUser)
@@ -155,9 +142,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private String getProviderId(Map<String, Object> attributes, AuthProvider provider) {
         if (provider == AuthProvider.GOOGLE) {
+            // Google's OIDC subject claim is the stable per-user identifier.
             return (String) attributes.get("sub");
-        } else if (provider == AuthProvider.FACEBOOK) {
-            return (String) attributes.get("id");
         }
         return null;
     }

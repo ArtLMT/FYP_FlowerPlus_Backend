@@ -9,6 +9,7 @@ import com.lmt.fyp.flowerplus.fake.InMemoryOtpStore;
 import com.lmt.fyp.flowerplus.fake.NoOpEmailSender;
 import com.lmt.fyp.flowerplus.fake.TestFakesConfig;
 import com.lmt.fyp.flowerplus.module.auth.repository.RefreshTokenRepository;
+import com.lmt.fyp.flowerplus.module.auth.service.OtpPurpose;
 import com.lmt.fyp.flowerplus.module.auth.web.dto.LoginRequest;
 import com.lmt.fyp.flowerplus.module.auth.web.dto.RegisterRequest;
 import com.lmt.fyp.flowerplus.module.auth.web.dto.ResendOtpRequest;
@@ -121,7 +122,7 @@ class AuthRegressionTest {
         // ------------------------------------------------------------------ //
         // 2. Read the code from the fake store
         // ------------------------------------------------------------------ //
-        assertThat(inMemoryOtpStore.findHash(email)).isPresent();
+        assertThat(inMemoryOtpStore.findHash(OtpPurpose.REGISTRATION, email)).isPresent();
         String otpCode = awaitLatestOtpCode(1);
         assertThat(otpCode).isNotNull().hasSize(6);
 
@@ -146,7 +147,7 @@ class AuthRegressionTest {
                 .andExpect(jsonPath("$.errorCode").value("OTP_ATTEMPTS_EXCEEDED"));
 
         // Code destroyed in store
-        assertThat(inMemoryOtpStore.findHash(email)).isEmpty();
+        assertThat(inMemoryOtpStore.findHash(OtpPurpose.REGISTRATION, email)).isEmpty();
 
         // ------------------------------------------------------------------ //
         // 4. Resend inside 60s -> expect 429/204 and no second send

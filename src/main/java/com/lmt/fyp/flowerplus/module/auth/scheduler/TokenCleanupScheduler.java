@@ -18,17 +18,19 @@ public class TokenCleanupScheduler {
 
     /**
      * Purges expired refresh tokens from the database.
+     * Also purges revoked tombstones left by rotation and logout.
      * Runs every day at midnight (UTC).
      */
     @Scheduled(cron = "0 0 0 * * ?")
     @Transactional
     public void purgeExpiredTokens() {
-        log.info("Starting scheduled cleanup of expired refresh tokens...");
+        log.info("Starting scheduled cleanup of spent refresh tokens...");
         try {
             refreshTokenRepository.deleteByExpiryDateBefore(Instant.now());
-            log.info("Expired refresh tokens successfully purged.");
+            refreshTokenRepository.deleteRevoked();
+            log.info("Expired and revoked refresh tokens successfully purged.");
         } catch (Exception e) {
-            log.error("Failed to purge expired refresh tokens", e);
+            log.error("Failed to purge spent refresh tokens", e);
         }
     }
 }

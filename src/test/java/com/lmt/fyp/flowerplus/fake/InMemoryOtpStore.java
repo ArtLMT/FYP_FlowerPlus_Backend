@@ -1,5 +1,6 @@
 package com.lmt.fyp.flowerplus.fake;
 
+import com.lmt.fyp.flowerplus.module.auth.service.OtpPurpose;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpStore;
 
 import java.time.Duration;
@@ -30,13 +31,13 @@ public class InMemoryOtpStore implements OtpStore {
     private final Map<String, Instant> resendCooldownMap = new ConcurrentHashMap<>();
 
     @Override
-    public void save(String email, String codeHash, Duration ttl) {
-        otpMap.put(email, new OtpEntry(codeHash, Instant.now().plus(ttl)));
+    public void save(OtpPurpose purpose, String email, String codeHash, Duration ttl) {
+        otpMap.put(key(purpose, email), new OtpEntry(codeHash, Instant.now().plus(ttl)));
     }
 
     @Override
-    public Optional<String> findHash(String email) {
-        OtpEntry entry = otpMap.get(email);
+    public Optional<String> findHash(OtpPurpose purpose, String email) {
+        OtpEntry entry = otpMap.get(key(purpose, email));
         if (entry == null || entry.isExpired(Instant.now())) {
             return Optional.empty();
         }
@@ -44,8 +45,8 @@ public class InMemoryOtpStore implements OtpStore {
     }
 
     @Override
-    public long incrementAttempts(String email) {
-        OtpEntry entry = otpMap.get(email);
+    public long incrementAttempts(OtpPurpose purpose, String email) {
+        OtpEntry entry = otpMap.get(key(purpose, email));
         if (entry == null) {
             return 1;
         }
@@ -53,37 +54,28 @@ public class InMemoryOtpStore implements OtpStore {
     }
 
     @Override
-    public void invalidate(String email) {
-        otpMap.remove(email);
+    public void invalidate(OtpPurpose purpose, String email) {
+        otpMap.remove(key(purpose, email));
     }
 
     @Override
-    public boolean tryAcquireResendSlot(String email, Duration interval) {
+    public boolean tryAcquireResendSlot(OtpPurpose purpose, String email, Duration interval) {
+        String key = key(purpose, email);
         Instant now = Instant.now();
-        Instant availableAt = resendCooldownMap.get(email);
+        Instant availableAt = resendCooldownMap.get(key);
         if (availableAt != null && now.isBefore(availableAt)) {
             return false;
         }
-        resendCooldownMap.put(email, now.plus(interval));
+        resendCooldownMap.put(key, now.plus(interval));
         return true;
-    }
-
-    /**
-     * Test-only accessor returning the plaintext code / hash stored for a given email key.
-     */
-    public Optional<String> getPlaintextCode(String email) {
-        return findHash(email);
-    }
-
-    /**
-     * Test-only accessor returning the stored code for a given email key.
-     */
-    public Optional<String> getCode(String email) {
-        return findHash(email);
     }
 
     public void clear() {
         otpMap.clear();
         resendCooldownMap.clear();
+    }
+
+    private static String key(OtpPurpose purpose, String email) {
+        return purpose + "|" + email;
     }
 }

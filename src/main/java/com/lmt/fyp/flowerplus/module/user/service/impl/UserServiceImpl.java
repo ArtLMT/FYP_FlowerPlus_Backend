@@ -32,6 +32,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public User getByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
+    }
+
+    @Override
     public UserProfile getProfile(User user) {
         return userProfileRepository.findByUser(user).orElse(null);
     }
@@ -61,15 +67,6 @@ public class UserServiceImpl implements UserService {
                 .build());
 
         return savedUser;
-    }
-
-    @Override
-    @Transactional
-    public void resetPendingAccount(User user, String hashedPassword, String fullName) {
-        user.setPassword(hashedPassword);
-        userProfileRepository.findByUser(user)
-                .ifPresent(profile -> profile.setFullName(fullName));
-        userRepository.save(user);
     }
 
     @Override

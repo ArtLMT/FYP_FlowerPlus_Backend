@@ -10,24 +10,24 @@ import java.util.Optional;
  * it is how the OTP rules are tested without a running server.
  */
 public interface OtpStore {
-    /** Stores the hash as the sole outstanding code for the email, resetting attempts to zero. */
-    void save(String email, String codeHash, Duration ttl);
+    /** Stores the hash as the sole outstanding code for (purpose, email), resetting attempts to zero. */
+    void save(OtpPurpose purpose, String email, String codeHash, Duration ttl);
 
     /** The outstanding code hash, or empty if none is live (never issued, expired, or consumed). */
-    Optional<String> findHash(String email);
+    Optional<String> findHash(OtpPurpose purpose, String email);
 
     /** Records one failed guess and returns the new total. Must be atomic. */
-    long incrementAttempts(String email);
+    long incrementAttempts(OtpPurpose purpose, String email);
 
     /** Drops the outstanding code, whether it was consumed or burnt through. */
-    void invalidate(String email);
+    void invalidate(OtpPurpose purpose, String email);
 
     /**
-     * Claims the right to send a code to this address, blocking further sends
-     * for {@code interval}. Must be atomic — two concurrent requests may not
-     * both succeed.
+     * Claims the right to send a code for (purpose, email), blocking further
+     * sends for {@code interval}. Must be atomic — two concurrent requests may
+     * not both succeed.
      *
      * @return false if a send is still within the cooldown
      */
-    boolean tryAcquireResendSlot(String email, Duration interval);
+    boolean tryAcquireResendSlot(OtpPurpose purpose, String email, Duration interval);
 }

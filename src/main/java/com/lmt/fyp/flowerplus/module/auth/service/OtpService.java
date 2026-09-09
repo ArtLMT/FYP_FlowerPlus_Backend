@@ -9,7 +9,7 @@ package com.lmt.fyp.flowerplus.module.auth.service;
  */
 public interface OtpService {
 
-    void issueOTP(String email);
+    void issueOTP(OtpPurpose purpose, String email);
 
-    void verify(String email, String code);
+    void verify(OtpPurpose purpose, String email, String code);
 }

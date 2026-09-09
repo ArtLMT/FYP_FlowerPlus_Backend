@@ -7,6 +7,7 @@ import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
 import com.lmt.fyp.flowerplus.module.auth.entity.RefreshToken;
 import com.lmt.fyp.flowerplus.module.auth.exception.EmailUsedException;
 import com.lmt.fyp.flowerplus.module.auth.service.AuthService;
+import com.lmt.fyp.flowerplus.module.auth.service.OtpPurpose;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpService;
 import com.lmt.fyp.flowerplus.module.auth.service.RefreshTokenService;
 import com.lmt.fyp.flowerplus.module.auth.service.TokenPair;
@@ -19,7 +20,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -34,10 +34,13 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
 
-    // Transactional so the OTP event, which fires AFTER_COMMIT, is never sent
-    // for a registration that rolled back.
+    // Deliberately NOT @Transactional. createPendingAccount runs in its own
+    // transaction and commits before the OTP is issued, so a failed account
+    // write can never leave an orphan code or a burnt cooldown in Redis (D5) —
+    // the OTP side effect only happens once the account it depends on is
+    // durable. The OTP email still fires only for a real account: issueOTP is
+    // reached only after the account commits.
     @Override
-    @Transactional
     public void register(String email, String rawPassword, String fullName) {
         String normalizedEmail = EmailNormalizer.normalize(email);
 
@@ -45,18 +48,26 @@ public class AuthServiceImpl implements AuthService {
 
         if (existing.isPresent()) {
             User user = existing.get();
-            if (user.getStatus() == UserAccountStatus.ACTIVE) {
-                throw new EmailUsedException("Email already registered");
-            } else if (user.getStatus() == UserAccountStatus.PENDING) {
-                userService.resetPendingAccount(user, passwordEncoder.encode(rawPassword), fullName);
-                otpService.issueOTP(normalizedEmail);
+
+            // PENDING: never verified. Re-issue the code only — the password is
+            // NOT overwritten. Ownership is unproven at registration time, so
+            // letting a re-registration reset the password would let a stranger
+            // hijack the pending account (N11). Recovery of a genuinely stuck
+            // account is the job of password reset, not re-registration.
+            if (user.getStatus() == UserAccountStatus.PENDING) {
+                otpService.issueOTP(OtpPurpose.REGISTRATION, normalizedEmail);
                 return;
             }
+
+            // ACTIVE, SUSPENDED or BANNED: an account already owns this email.
+            // All three answer with the same 409 so a caller cannot tell a
+            // banned address apart from an ordinary registered one.
+            throw new EmailUsedException("Email already registered");
         }
 
         userService.createPendingAccount(normalizedEmail, passwordEncoder.encode(rawPassword), fullName);
 
-        otpService.issueOTP(normalizedEmail);
+        otpService.issueOTP(OtpPurpose.REGISTRATION, normalizedEmail);
     }
 
     @Override
@@ -81,14 +92,18 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenService.revoke(refreshToken);
     }
 
+    // Not @Transactional: rotate() owns its own transaction (that is what makes
+    // its noRollbackFor reuse-cleanup durable). The user it returns is eagerly
+    // loaded, so reading status/identity here needs no open session.
     @Override
-    @Transactional(readOnly = true)
     public TokenPair refresh(String refreshToken) {
-        RefreshToken stored = refreshTokenService.verify(refreshToken);
+        RefreshToken rotated = refreshTokenService.rotate(refreshToken);
 
         // A revoked account status must invalidate the session immediately,
-        // not wait out the refresh token's remaining lifetime.
-        User user = stored.getUser();
+        // not wait out the refresh token's remaining lifetime. (Edge: a blocked
+        // account's token has already been rotated by this point — the new row
+        // is never returned and is swept as a tombstone; harmless.)
+        User user = rotated.getUser();
         if (SecurityUser.isAuthBlocked(user.getStatus())) {
             throw new UnauthorizedException(
                     ErrorCode.REFRESH_TOKEN_INVALID, "Account is not permitted to refresh");
@@ -96,6 +111,6 @@ public class AuthServiceImpl implements AuthService {
 
         return new TokenPair(
                 jwtService.generateToken(SecurityUser.fromEntity(user)),
-                stored.getToken());
+                rotated.getToken());
     }
 }
