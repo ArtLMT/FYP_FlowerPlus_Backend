@@ -34,6 +34,7 @@ public enum ErrorCode {
     /* ===================== USER ===================== */
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "user.notFound"),
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "user.emailAlreadyExists"),
+    ADDRESS_NOT_FOUND(HttpStatus.NOT_FOUND, "address.notFound"),
 
     /* ===================== VALIDATION ===================== */
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "validation.failed"),

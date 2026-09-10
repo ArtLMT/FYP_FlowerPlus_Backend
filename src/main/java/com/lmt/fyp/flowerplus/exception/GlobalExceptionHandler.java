@@ -6,6 +6,7 @@ import com.lmt.fyp.flowerplus.module.auth.exception.EmailUsedException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpAttemptsExceededException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
+import com.lmt.fyp.flowerplus.module.user.exception.AddressNotFoundException;
 import com.lmt.fyp.flowerplus.module.user.exception.UserNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -74,6 +75,25 @@ public class GlobalExceptionHandler {
                 .timestamp(Instant.now())
                 .build();
         return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    /** 404 not 403: a 403 would confirm the row exists. */
+    @ExceptionHandler(AddressNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleAddressNotFound(
+            AddressNotFoundException ex, HttpServletRequest request) {
+        log.warn("[ADDRESS_NOT_FOUND] {} — path={}", ex.getMessage(), request.getRequestURI());
+
+        HttpStatus status = ErrorCode.ADDRESS_NOT_FOUND.getStatus();
+        ErrorResponse error = ErrorResponse.builder()
+                .success(false)
+                .status(status.value())
+                .errorCode(ErrorCode.ADDRESS_NOT_FOUND.name())
+                .error(status.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(Instant.now())
+                .build();
+        return new ResponseEntity<>(error, status);
     }
 
     @ExceptionHandler(EmailUsedException.class)

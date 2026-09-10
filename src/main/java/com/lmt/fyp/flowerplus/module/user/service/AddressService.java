@@ -1,0 +1,106 @@
+package com.lmt.fyp.flowerplus.module.user.service;
+
+import com.lmt.fyp.flowerplus.module.user.entity.Address;
+import com.lmt.fyp.flowerplus.module.user.entity.User;
+import com.lmt.fyp.flowerplus.module.user.exception.AddressNotFoundException;
+import com.lmt.fyp.flowerplus.module.user.repository.AddressRepository;
+import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
+
+/** Rules and rationale: docs/modules/address.md */
+@Service
+@RequiredArgsConstructor
+public class AddressService {
+
+    private final AddressRepository addressRepository;
+    private final UserRepository userRepository;
+
+    @Transactional(readOnly = true)
+    public Page<Address> listFor(User owner, Pageable pageable) {
+        return addressRepository.findByUserId(owner.getId(), pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Address getOwned(User owner, UUID addressId) {
+        return addressRepository.findByIdAndUserId(addressId, owner.getId())
+                .orElseThrow(() -> new AddressNotFoundException(
+                        "Address not found with id: " + addressId));
+    }
+
+    @Transactional
+    public Address addAddress(User owner, String receiverName, String phone,
+                              String address, boolean makeDefault) {
+        UUID ownerId = owner.getId();
+        boolean isDefault = makeDefault || !addressRepository.existsByUserId(ownerId);
+
+        if (isDefault) {
+            addressRepository.clearDefaultFor(ownerId);
+        }
+
+        return addressRepository.save(Address.builder()
+                // Re-fetched: clearDefaultFor() detaches the argument. Issues no SELECT.
+                .user(userRepository.getReferenceById(ownerId))
+                .receiverName(receiverName)
+                .phone(phone)
+                .address(address)
+                .isDefault(isDefault)
+                .build());
+    }
+
+    @Transactional
+    public Address updateAddress(User owner, UUID addressId, String receiverName,
+                                 String phone, String address, boolean makeDefault) {
+        UUID ownerId = owner.getId();
+        Address existing = getOwned(owner, addressId);
+        boolean wasDefault = existing.isDefault();
+        boolean shouldBeDefault = makeDefault || wasDefault;
+
+        if (shouldBeDefault && !wasDefault) {
+            addressRepository.clearDefaultFor(ownerId);
+            existing = getOwned(owner, addressId);
+        }
+
+        existing.setReceiverName(receiverName);
+        existing.setPhone(phone);
+        existing.setAddress(address);
+        existing.setDefault(shouldBeDefault);
+        return existing;
+    }
+
+    @Transactional
+    public Address setDefault(User owner, UUID addressId) {
+        UUID ownerId = owner.getId();
+        getOwned(owner, addressId);
+
+        // Two statements, in this order. The V5 partial unique index is checked
+        // per row and cannot be deferred, so no moment may have two rows true.
+        addressRepository.clearDefaultFor(ownerId);
+
+        Address target = getOwned(owner, addressId);
+        target.setDefault(true);
+        return target;
+    }
+
+    @Transactional
+    public void deleteAddress(User owner, UUID addressId) {
+        UUID ownerId = owner.getId();
+        Address target = getOwned(owner, addressId);
+        boolean wasDefault = target.isDefault();
+
+        addressRepository.delete(target);
+
+        if (wasDefault) {
+            // Hibernate orders updates ahead of deletes, so the promotion below
+            // would hit the unique index while the old default still exists.
+            addressRepository.flush();
+            addressRepository.findFirstByUserIdOrderByCreatedAtAsc(ownerId)
+                    .ifPresent(next -> next.setDefault(true));
+        }
+    }
+}
