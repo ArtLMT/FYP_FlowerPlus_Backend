@@ -72,6 +72,12 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void activate(User user) {
-        user.setStatus(UserAccountStatus.ACTIVE);
+        user.activate();
+    }
+
+    @Override
+    @Transactional
+    public void updatePassword(User user, String hashedPassword) {
+        user.setPassword(hashedPassword);
     }
 }

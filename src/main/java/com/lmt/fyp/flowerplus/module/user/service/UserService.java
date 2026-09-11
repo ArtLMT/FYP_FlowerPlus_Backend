@@ -36,6 +36,13 @@ public interface UserService {
     /** Creates a PENDING account plus its profile. Email doubles as the username. */
     User createPendingAccount(String email, String hashedPassword, String fullName);
 
-    /** Marks a verified account ACTIVE. Relies on dirty checking inside the caller's transaction. */
+    /**
+     * PENDING → ACTIVE. Relies on dirty checking inside the caller's transaction.
+     *
+     * @throws IllegalStateException if the account is not PENDING
+     */
     void activate(User user);
+
+    /** Replaces the password hash. Relies on dirty checking inside the caller's transaction. */
+    void updatePassword(User user, String hashedPassword);
 }

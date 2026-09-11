@@ -8,9 +8,8 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit test for {@link SecurityUser} — the Spring Security principal and the
- * single place "may this account authenticate?" is decided. Pure logic: no
- * Spring, no database.
+ * Unit test for {@link SecurityUser}, the Spring Security principal. Pure
+ * logic: no Spring, no database.
  */
 class SecurityUserTest {
 

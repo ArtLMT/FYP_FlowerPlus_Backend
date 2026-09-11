@@ -86,7 +86,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
                 user.setProvider(provider);
                 user.setProviderId(getProviderId(attributes, provider));
-                user.setStatus(UserAccountStatus.ACTIVE);
+                user.activate();
                 user = userRepository.save(user);
             } else if (user.getProvider() == AuthProvider.LOCAL) {
                 // Safe: only reached by a non-BANNED, non-PENDING account whose email the provider verified,

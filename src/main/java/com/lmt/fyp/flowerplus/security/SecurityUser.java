@@ -37,10 +37,8 @@ public class SecurityUser implements UserDetails {
     }
 
     /**
-     * Single source of truth for "may this account authenticate at all?".
-     * BANNED and PENDING are blocked; SUSPENDED users can still sign in (they
-     * are restricted at the order layer, not here). Shared with RefreshService
-     * so the refresh path stays aligned with the login path.
+     * "May this account authenticate at all?" The rule itself lives on
+     * {@link UserAccountStatus#canAuthenticate()}. Shared by login and refresh.
      *
      * <p>The two UserDetails flags below split this same set on purpose so the
      * login path can give a different message for each: BANNED surfaces as a
@@ -48,7 +46,7 @@ public class SecurityUser implements UserDetails {
      * union must stay equal to this method.
      */
     public static boolean isAuthBlocked(UserAccountStatus status) {
-        return status == UserAccountStatus.BANNED || status == UserAccountStatus.PENDING;
+        return !status.canAuthenticate();
     }
 
     /** The account status, for authorization checks beyond authentication. */
