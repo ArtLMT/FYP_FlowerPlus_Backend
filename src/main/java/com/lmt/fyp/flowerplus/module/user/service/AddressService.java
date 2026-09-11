@@ -56,40 +56,34 @@ public class AddressService {
     @Transactional
     public Address updateAddress(User owner, UUID addressId, String receiverName,
                                  String phone, String address, boolean makeDefault) {
-        UUID ownerId = owner.getId();
         Address existing = getOwned(owner, addressId);
-        boolean wasDefault = existing.isDefault();
-        boolean shouldBeDefault = makeDefault || wasDefault;
 
-        if (shouldBeDefault && !wasDefault) {
-            addressRepository.clearDefaultFor(ownerId);
+        if (makeDefault && !existing.isDefault()) {
+            addressRepository.clearDefaultFor(owner.getId());
+            // Reloaded: the bulk update cleared the persistence context.
             existing = getOwned(owner, addressId);
+            existing.markDefault();
         }
 
-        existing.setReceiverName(receiverName);
-        existing.setPhone(phone);
-        existing.setAddress(address);
-        existing.setDefault(shouldBeDefault);
+        existing.edit(receiverName, phone, address);
         return existing;
     }
 
     @Transactional
     public Address setDefault(User owner, UUID addressId) {
-        UUID ownerId = owner.getId();
         getOwned(owner, addressId);
 
         // Two statements, in this order. The V5 partial unique index is checked
         // per row and cannot be deferred, so no moment may have two rows true.
-        addressRepository.clearDefaultFor(ownerId);
+        addressRepository.clearDefaultFor(owner.getId());
 
         Address target = getOwned(owner, addressId);
-        target.setDefault(true);
+        target.markDefault();
         return target;
     }
 
     @Transactional
     public void deleteAddress(User owner, UUID addressId) {
-        UUID ownerId = owner.getId();
         Address target = getOwned(owner, addressId);
         boolean wasDefault = target.isDefault();
 
@@ -99,8 +93,8 @@ public class AddressService {
             // Hibernate orders updates ahead of deletes, so the promotion below
             // would hit the unique index while the old default still exists.
             addressRepository.flush();
-            addressRepository.findFirstByUserIdOrderByCreatedAtAsc(ownerId)
-                    .ifPresent(next -> next.setDefault(true));
+            addressRepository.findFirstByUserIdOrderByCreatedAtAsc(owner.getId())
+                    .ifPresent(Address::markDefault);
         }
     }
 }

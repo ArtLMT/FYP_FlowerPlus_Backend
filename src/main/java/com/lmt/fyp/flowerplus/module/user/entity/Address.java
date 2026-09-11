@@ -7,7 +7,6 @@ import lombok.*;
 @Entity
 @Table(name = "address")
 @Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -29,4 +28,16 @@ public class Address extends TimestampEntity {
     /** At most one per user, enforced by a partial unique index in V5. */
     @Column(name = "is_default", nullable = false)
     private boolean isDefault;
+
+    /** Leaves isDefault alone on purpose: editing must never clear the default. */
+    public void edit(String receiverName, String phone, String address) {
+        this.receiverName = receiverName;
+        this.phone = phone;
+        this.address = address;
+    }
+
+    /** The caller must clear the previous default first (V5 index); see AddressService. */
+    public void markDefault() {
+        this.isDefault = true;
+    }
 }
