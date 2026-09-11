@@ -14,9 +14,10 @@ import java.util.Optional;
 
 /**
  * Redis-backed OTP store.
- * Two keys per (purpose, address), deliberately kept apart:
+ * Three keys per (purpose, address), deliberately kept apart:
  * otp:{purpose}:{email}          Hash { hash, attempts }   TTL = code lifetime
  * otp:resend:{purpose}:{email}   String "1"                TTL = resend cooldown
+ * otp:sends:{purpose}:{email}    String counter            TTL = counting window
  *
  * <p>The purpose namespaces the key so a code issued for one flow (say a
  * password reset) can never satisfy another (a registration).
@@ -27,6 +28,7 @@ public class RedisOtpStore implements OtpStore {
 
     private static final String CODE_KEY_PREFIX = "otp:";
     private static final String RESEND_KEY_PREFIX = "otp:resend:";
+    private static final String SEND_COUNT_KEY_PREFIX = "otp:sends:";
     private static final String FIELD_HASH = "hash";
     private static final String FIELD_ATTEMPTS = "attempts";
 
@@ -83,12 +85,29 @@ public class RedisOtpStore implements OtpStore {
                 redis.opsForValue().setIfAbsent(resendKey(purpose, email), "1", interval));
     }
 
+    @Override
+    public long incrementSendCount(OtpPurpose purpose, String email, Duration window) {
+        String key = sendCountKey(purpose, email);
+        Long count = redis.opsForValue().increment(key);
+        // Only the first send opens the window; later sends must not extend it.
+        // Same caveat as incrementAttempts: a crash between the two calls would
+        // leave a counter without a TTL.
+        if (count != null && count == 1) {
+            redis.expire(key, window);
+        }
+        return count == null ? 0 : count;
+    }
+
     private String codeKey(OtpPurpose purpose, String email) {
         return CODE_KEY_PREFIX + slug(purpose) + ":" + email;
     }
 
     private String resendKey(OtpPurpose purpose, String email) {
         return RESEND_KEY_PREFIX + slug(purpose) + ":" + email;
+    }
+
+    private String sendCountKey(OtpPurpose purpose, String email) {
+        return SEND_COUNT_KEY_PREFIX + slug(purpose) + ":" + email;
     }
 
     private String slug(OtpPurpose purpose) {

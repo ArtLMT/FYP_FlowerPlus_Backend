@@ -27,8 +27,11 @@ public class InMemoryOtpStore implements OtpStore {
         }
     }
 
+    private record SendWindow(long count, Instant endsAt) { }
+
     private final Map<String, OtpEntry> otpMap = new ConcurrentHashMap<>();
     private final Map<String, Instant> resendCooldownMap = new ConcurrentHashMap<>();
+    private final Map<String, SendWindow> sendWindows = new ConcurrentHashMap<>();
 
     @Override
     public void save(OtpPurpose purpose, String email, String codeHash, Duration ttl) {
@@ -70,9 +73,20 @@ public class InMemoryOtpStore implements OtpStore {
         return true;
     }
 
+    @Override
+    public long incrementSendCount(OtpPurpose purpose, String email, Duration window) {
+        Instant now = Instant.now();
+        SendWindow updated = sendWindows.compute(key(purpose, email), (k, current) ->
+                current == null || !now.isBefore(current.endsAt())
+                        ? new SendWindow(1, now.plus(window))
+                        : new SendWindow(current.count() + 1, current.endsAt()));
+        return updated.count();
+    }
+
     public void clear() {
         otpMap.clear();
         resendCooldownMap.clear();
+        sendWindows.clear();
     }
 
     private static String key(OtpPurpose purpose, String email) {

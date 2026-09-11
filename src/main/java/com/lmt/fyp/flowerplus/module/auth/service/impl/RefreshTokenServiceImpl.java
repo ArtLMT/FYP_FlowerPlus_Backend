@@ -89,4 +89,10 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                     refreshTokenRepository.save(rt);
                 });
     }
+
+    @Override
+    @Transactional
+    public void revokeAll(User user) {
+        refreshTokenRepository.deleteByUser(user);
+    }
 }

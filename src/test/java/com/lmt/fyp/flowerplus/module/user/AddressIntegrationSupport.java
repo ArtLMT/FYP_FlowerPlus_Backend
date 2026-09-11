@@ -43,7 +43,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "EMAIL_HOST=localhost",
         "EMAIL_PORT=1025",
         "EMAIL_USERNAME=test@flowerplus.com",
-        "EMAIL_PASSWORD=testpassword"
+        "EMAIL_PASSWORD=testpassword",
+        "ADMIN_EMAIL=admin@flowerplus.test",
+        "ADMIN_PASSWORD=AdminPassword123"
 })
 @Import(TestFakesConfig.class)
 abstract class AddressIntegrationSupport {

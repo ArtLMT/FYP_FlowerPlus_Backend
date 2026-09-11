@@ -23,7 +23,10 @@ public class EmailEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onOtpRequested(OtpRequestedEvent event){
         try {
-            emailService.sendOTP(event.email(), event.otp());
+            switch (event.purpose()) {
+                case REGISTRATION -> emailService.sendOTP(event.email(), event.otp());
+                case PASSWORD_RESET -> emailService.sendPasswordResetCode(event.email(), event.otp());
+            }
         } catch (Exception e) {
             log.error("Failed to send OTP to " + event.email(), e);
         }

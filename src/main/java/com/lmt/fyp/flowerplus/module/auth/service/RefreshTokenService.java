@@ -18,4 +18,10 @@ public interface RefreshTokenService {
     RefreshToken rotate(String token);
 
     void revoke(String token);
+
+    /**
+     * Ends every session the user has by deleting all their refresh tokens.
+     * Access tokens already issued stay valid until they expire.
+     */
+    void revokeAll(User user);
 }

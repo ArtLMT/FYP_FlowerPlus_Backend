@@ -25,7 +25,7 @@ class OtpHasherTest {
         // Arrange (shared): OtpProperties is a record; only the secret matters here,
         // the other fields are filler because OtpHasher only reads hmacSecret().
         OtpProperties properties = new OtpProperties(
-                Duration.ofMinutes(5), 5, Duration.ofSeconds(60), "test-only-secret");
+                Duration.ofMinutes(5), 5, Duration.ofSeconds(60), 5, "test-only-secret");
         hasher = new OtpHasher(properties);
     }
 

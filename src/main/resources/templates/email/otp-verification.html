@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light only">
     <meta name="supported-color-schemes" content="light only">
-    <title>Verify your email</title>
+    <title th:text="${heading}">Verify your email</title>
     <!-- Non-layout-critical only: Gmail strips much of this. -->
     <style>
         :root { color-scheme: light only; }
@@ -19,7 +19,7 @@
 
 <!-- Preheader: inbox preview line, hidden in the rendered body. -->
 <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
-    Your FlowerPlus verification code expires in
+    Your FlowerPlus <span th:text="${codeLabel}">verification code</span> expires in
     <span th:text="${expiryMinutes}">5</span> minutes.
 </div>
 
@@ -47,12 +47,14 @@
                     <td align="center" class="fp-pad" style="padding:32px 40px 0 40px;">
                         <h1 style="margin:0;
                                    font-family:'EB Garamond', Garamond, Georgia, 'Times New Roman', serif;
-                                   font-size:22px; font-weight:normal; color:#2E1A16;">
+                                   font-size:22px; font-weight:normal; color:#2E1A16;"
+                            th:text="${heading}">
                             Verify your email address
                         </h1>
                         <p style="margin:12px 0 0 0;
                                   font-family:'Karla', Helvetica, Arial, sans-serif;
-                                  font-size:16px; line-height:24px; color:#6B4039;">
+                                  font-size:16px; line-height:24px; color:#6B4039;"
+                           th:text="${lead}">
                             Enter the code below to finish creating your FlowerPlus account.
                         </p>
                     </td>
@@ -90,9 +92,10 @@
                                 <td style="border-top:1px solid #E8D0C9; padding-top:20px;
                                            font-family:'Karla', Helvetica, Arial, sans-serif;
                                            font-size:13px; line-height:20px; color:#6B4039;">
-                                    If you did not request this code, you can safely ignore this
-                                    email &mdash; no account will be created. Never share this code
-                                    with anyone; FlowerPlus staff will never ask you for it.
+                                    <span th:text="${ignoreNote}">If you did not request this code, you
+                                    can safely ignore this email &mdash; no account will be created.</span>
+                                    Never share this code with anyone; FlowerPlus staff will never ask
+                                    you for it.
                                 </td>
                             </tr>
                         </table>
