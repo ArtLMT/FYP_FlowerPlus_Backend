@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Redis-backed OTP store.
@@ -96,6 +97,22 @@ public class RedisOtpStore implements OtpStore {
             redis.expire(key, window);
         }
         return count == null ? 0 : count;
+    }
+
+    @Override
+    public Duration resendCooldownRemaining(OtpPurpose purpose, String email) {
+        return timeLeft(resendKey(purpose, email));
+    }
+
+    @Override
+    public Duration sendWindowRemaining(OtpPurpose purpose, String email) {
+        return timeLeft(sendCountKey(purpose, email));
+    }
+
+    private Duration timeLeft(String key) {
+        // TTL answers -2 for a missing key and -1 for a key with no expiry.
+        Long seconds = redis.getExpire(key, TimeUnit.SECONDS);
+        return seconds == null || seconds < 0 ? Duration.ZERO : Duration.ofSeconds(seconds);
     }
 
     private String codeKey(OtpPurpose purpose, String email) {

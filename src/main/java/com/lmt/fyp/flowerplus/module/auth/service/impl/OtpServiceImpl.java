@@ -5,6 +5,7 @@ import com.lmt.fyp.flowerplus.config.OtpProperties;
 import com.lmt.fyp.flowerplus.module.auth.event.EmailVerifiedEvent;
 import com.lmt.fyp.flowerplus.module.auth.event.OtpRequestedEvent;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpAttemptsExceededException;
+import com.lmt.fyp.flowerplus.module.auth.exception.OtpDailyLimitReachedException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpHasher;
@@ -30,6 +31,7 @@ public class OtpServiceImpl implements OtpService {
     private static final int CODE_ORIGIN = 100_000;
     private static final int CODE_BOUND = 900_000;
     private static final Duration SEND_COUNT_WINDOW = Duration.ofDays(1);
+    private static final Duration MIN_RETRY_AFTER = Duration.ofSeconds(1);
 
     private final OtpStore otpStore;
     private final OtpHasher otpHasher;
@@ -52,7 +54,9 @@ public class OtpServiceImpl implements OtpService {
     public void throttle(OtpPurpose purpose, String email) {
         String normalizedEmail = EmailNormalizer.normalize(email);
         if (!otpStore.tryAcquireResendSlot(purpose, normalizedEmail, otpProperties.resendInterval())) {
-            throw new OtpThrottledException("A code was sent recently. Please wait before requesting another.");
+            throw new OtpThrottledException(
+                    "A code was sent recently. Please wait before requesting another.",
+                    retryAfter(otpStore.resendCooldownRemaining(purpose, normalizedEmail)));
         }
 
         // One code survives 5 guesses, but a fresh one every resend interval
@@ -60,7 +64,9 @@ public class OtpServiceImpl implements OtpService {
         if (purpose == OtpPurpose.PASSWORD_RESET
                 && otpStore.incrementSendCount(purpose, normalizedEmail, SEND_COUNT_WINDOW)
                         > otpProperties.resetDailyLimit()) {
-            throw new OtpThrottledException("Too many reset codes requested today. Please try again tomorrow.");
+            throw new OtpDailyLimitReachedException(
+                    "Too many reset codes requested today. Please try again tomorrow.",
+                    retryAfter(otpStore.sendWindowRemaining(purpose, normalizedEmail)));
         }
     }
 
@@ -106,6 +112,12 @@ public class OtpServiceImpl implements OtpService {
             // This log mean verification worked, but the cache can't be delete and will be after it TTL
             log.warn("Failed to invalidate OTP after verification for {}", event.email(), e);
         }
+    }
+
+    // The key can expire between the refusal and the read that follows it;
+    // "retry after 0 seconds" would invite an immediate, still-refused retry.
+    private static Duration retryAfter(Duration remaining) {
+        return remaining.compareTo(MIN_RETRY_AFTER) < 0 ? MIN_RETRY_AFTER : remaining;
     }
 
     private String generateOTP() {

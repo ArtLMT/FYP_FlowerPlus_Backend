@@ -30,6 +30,7 @@ public enum ErrorCode {
     OTP_INVALID(HttpStatus.BAD_REQUEST, "otp.invalid"),
     OTP_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "otp.attemptsExceeded"),
     OTP_THROTTLED(HttpStatus.TOO_MANY_REQUESTS, "otp.throttled"),
+    OTP_DAILY_LIMIT_REACHED(HttpStatus.TOO_MANY_REQUESTS, "otp.dailyLimitReached"),
 
     /* ===================== USER ===================== */
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "user.notFound"),

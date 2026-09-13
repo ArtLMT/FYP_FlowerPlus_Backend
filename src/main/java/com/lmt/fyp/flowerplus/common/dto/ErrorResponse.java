@@ -10,7 +10,8 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * Standard API error structure.
+ * Standard API error structure. Field meanings and every error code:
+ * docs/error-codes.md.
  */
 @Getter
 @Setter
@@ -25,5 +26,7 @@ public class ErrorResponse {
     private String message;
     private String path;
     private Instant timestamp;
+    private Long retryAfterSeconds;
     private Map<String, String> validationErrors;
+    private Map<String, String> validationRules;
 }

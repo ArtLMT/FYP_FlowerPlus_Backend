@@ -35,7 +35,8 @@ Registration, login, Google login, refresh-token rotation and password reset. Re
 - **The send limits apply to every request, account or not.** Emails that get no code still go
   through `OtpService.throttle`, so a quick second request gets the same `429` either way.
   Skipping that for unknown emails would make the `429` itself reveal registered addresses.
-- **At most 5 reset codes per email per 24 hours** (`OTP_RESET_DAILY_LIMIT`). One code survives
+- **At most 5 reset codes per email per 24 hours** (`OTP_RESET_DAILY_LIMIT`), answered with
+  `429 OTP_DAILY_LIMIT_REACHED` rather than the resend interval's `OTP_THROTTLED`. One code survives
   5 guesses, but a fresh code every 60 seconds would otherwise allow about 7,200 guesses a day
   against one account.
 - **The account is re-checked after the code verifies** — it may have been banned since the code

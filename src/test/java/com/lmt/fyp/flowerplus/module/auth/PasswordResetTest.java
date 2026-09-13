@@ -94,7 +94,22 @@ class PasswordResetTest extends AuthIntegrationSupport {
 
         requestReset("nobody@example.com")
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.errorCode").value("OTP_THROTTLED"));
+                .andExpect(jsonPath("$.errorCode").value("OTP_THROTTLED"))
+                .andExpect(jsonPath("$.retryAfterSeconds").isNumber());
+    }
+
+    @Test
+    @DisplayName("past the daily limit the answer has its own code, even for an email with no account")
+    void dailyLimitHasItsOwnCode() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            requestReset("nobody@example.com").andExpect(status().isNoContent());
+            inMemoryOtpStore.clearResendCooldowns();
+        }
+
+        requestReset("nobody@example.com")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.errorCode").value("OTP_DAILY_LIMIT_REACHED"))
+                .andExpect(jsonPath("$.retryAfterSeconds").isNumber());
     }
 
     @Test
@@ -115,6 +130,7 @@ class PasswordResetTest extends AuthIntegrationSupport {
     void weakNewPasswordIsRejected() throws Exception {
         reset(EMAIL, "123456", "short")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.validationRules.newPassword").value("Size"));
     }
 }

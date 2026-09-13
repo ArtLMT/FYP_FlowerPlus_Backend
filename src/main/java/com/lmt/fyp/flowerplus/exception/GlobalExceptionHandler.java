@@ -4,6 +4,7 @@ import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.dto.ErrorResponse;
 import com.lmt.fyp.flowerplus.module.auth.exception.EmailUsedException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpAttemptsExceededException;
+import com.lmt.fyp.flowerplus.module.auth.exception.OtpDailyLimitReachedException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
 import com.lmt.fyp.flowerplus.module.user.exception.AddressNotFoundException;
@@ -115,12 +116,13 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * OTP rejections. All three are routine, expected outcomes of a public
+     * OTP rejections. All of them are routine, expected outcomes of a public
      * endpoint, so they are mapped here rather than being left to the catch-all
      * below, which would report a mistyped code as a 500 with a stack trace.
      *
      * <p>Grouped like {@code handleAccountBlocked}: one method, one shape of
-     * response, with only the error code varying.
+     * response, with only the error code varying. Both throttle codes also say
+     * how long to wait, so the client never has to parse the message.
      */
     @ExceptionHandler({
             OtpInvalidException.class,
@@ -132,9 +134,13 @@ public class GlobalExceptionHandler {
 
         ErrorCode code = switch (ex) {
             case OtpAttemptsExceededException ignored -> ErrorCode.OTP_ATTEMPTS_EXCEEDED;
+            case OtpDailyLimitReachedException ignored -> ErrorCode.OTP_DAILY_LIMIT_REACHED;
             case OtpThrottledException ignored -> ErrorCode.OTP_THROTTLED;
             default -> ErrorCode.OTP_INVALID;
         };
+        Long retryAfterSeconds = ex instanceof OtpThrottledException throttled
+                ? Long.valueOf(throttled.getRetryAfter().toSeconds())
+                : null;
 
         log.warn("[{}] {} — path={}", code.name(), ex.getMessage(), request.getRequestURI());
 
@@ -147,6 +153,7 @@ public class GlobalExceptionHandler {
                 .message(ex.getMessage())
                 .path(request.getRequestURI())
                 .timestamp(Instant.now())
+                .retryAfterSeconds(retryAfterSeconds)
                 .build();
         return new ResponseEntity<>(error, status);
     }
@@ -160,11 +167,14 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex, HttpServletRequest request) {
         log.warn("[VALIDATION_FAILED] {} field errors — path={}", ex.getErrorCount(), request.getRequestURI());
 
+        // Filled from the same error in one pass: a field failing two
+        // constraints must report the same one in both maps.
         Map<String, String> errors = new HashMap<>();
+        Map<String, String> rules = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((err) -> {
             String fieldName = ((FieldError) err).getField();
-            String errorMessage = err.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
+            errors.put(fieldName, err.getDefaultMessage());
+            rules.put(fieldName, err.getCode());
         });
 
         ErrorResponse error = ErrorResponse.builder()
@@ -176,6 +186,7 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .timestamp(Instant.now())
                 .validationErrors(errors)
+                .validationRules(rules)
                 .build();
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }

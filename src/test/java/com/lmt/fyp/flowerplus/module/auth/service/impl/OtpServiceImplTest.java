@@ -3,6 +3,7 @@ package com.lmt.fyp.flowerplus.module.auth.service.impl;
 import com.lmt.fyp.flowerplus.config.OtpProperties;
 import com.lmt.fyp.flowerplus.fake.InMemoryOtpStore;
 import com.lmt.fyp.flowerplus.module.auth.event.OtpRequestedEvent;
+import com.lmt.fyp.flowerplus.module.auth.exception.OtpDailyLimitReachedException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpHasher;
@@ -32,18 +33,21 @@ class OtpServiceImplTest {
     }
 
     @Test
-    @DisplayName("a second reset request inside the resend interval is refused")
+    @DisplayName("a second reset request inside the resend interval is refused, with the wait left")
     void resendIntervalApplies() {
         OtpServiceImpl service = service(Duration.ofSeconds(60), 5);
 
         service.throttle(OtpPurpose.PASSWORD_RESET, EMAIL);
 
         assertThatThrownBy(() -> service.throttle(OtpPurpose.PASSWORD_RESET, EMAIL))
-                .isInstanceOf(OtpThrottledException.class);
+                .isExactlyInstanceOf(OtpThrottledException.class)
+                .satisfies(e -> assertThat(((OtpThrottledException) e).getRetryAfter())
+                        .isPositive()
+                        .isLessThanOrEqualTo(Duration.ofSeconds(60)));
     }
 
     @Test
-    @DisplayName("an address gets at most the daily number of reset codes")
+    @DisplayName("past the daily reset limit the refusal is its own kind, with the rest of the day to wait")
     void resetCodesAreCappedPerDay() {
         OtpServiceImpl service = service(Duration.ZERO, 3);
 
@@ -52,7 +56,10 @@ class OtpServiceImplTest {
         }
 
         assertThatThrownBy(() -> service.throttle(OtpPurpose.PASSWORD_RESET, EMAIL))
-                .isInstanceOf(OtpThrottledException.class);
+                .isInstanceOfSatisfying(OtpDailyLimitReachedException.class,
+                        e -> assertThat(e.getRetryAfter())
+                                .isGreaterThan(Duration.ofHours(23))
+                                .isLessThanOrEqualTo(Duration.ofDays(1)));
     }
 
     @Test
