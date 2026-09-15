@@ -20,8 +20,8 @@ public interface AuthService {
      * Sets a new password using a valid reset code, then ends every session the
      * account has.
      *
-     * @throws com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException
-     *         if the code is wrong or expired
+     * @throws com.lmt.fyp.flowerplus.exception.ApiException
+     *         {@code OTP_INVALID} if the code is wrong or expired
      */
     void resetPassword(String email, String code, String rawNewPassword);
 }

@@ -1,9 +1,9 @@
 package com.lmt.fyp.flowerplus.module.user.service;
 
+import com.lmt.fyp.flowerplus.common.ErrorCode;
+import com.lmt.fyp.flowerplus.exception.ApiException;
 import com.lmt.fyp.flowerplus.module.user.entity.Address;
 import com.lmt.fyp.flowerplus.module.user.entity.User;
-import com.lmt.fyp.flowerplus.module.user.exception.AddressLimitReachedException;
-import com.lmt.fyp.flowerplus.module.user.exception.AddressNotFoundException;
 import com.lmt.fyp.flowerplus.module.user.repository.AddressRepository;
 import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,10 +32,11 @@ public class AddressService {
                 owner.getId(), PageRequest.of(0, MAX_ADDRESSES_PER_USER));
     }
 
+    // Someone else's address is 404 too, not 403: a 403 would confirm the row exists.
     @Transactional(readOnly = true)
     public Address getOwned(User owner, UUID addressId) {
         return addressRepository.findByIdAndUserId(addressId, owner.getId())
-                .orElseThrow(() -> new AddressNotFoundException(
+                .orElseThrow(() -> new ApiException(ErrorCode.ADDRESS_NOT_FOUND,
                         "Address not found with id: " + addressId));
     }
 
@@ -44,7 +45,7 @@ public class AddressService {
                               String address, boolean makeDefault) {
         UUID ownerId = owner.getId();
         if (addressRepository.countByUserId(ownerId) >= MAX_ADDRESSES_PER_USER) {
-            throw new AddressLimitReachedException(
+            throw new ApiException(ErrorCode.ADDRESS_LIMIT_REACHED,
                     "A customer can save at most " + MAX_ADDRESSES_PER_USER + " addresses.");
         }
 

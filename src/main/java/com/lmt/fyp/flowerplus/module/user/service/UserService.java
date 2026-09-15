@@ -14,16 +14,16 @@ import java.util.UUID;
 public interface UserService {
 
     /**
-     * @throws com.lmt.fyp.flowerplus.module.user.exception.UserNotFoundException
-     *         if no account has this id
+     * @throws com.lmt.fyp.flowerplus.exception.ApiException
+     *         {@code USER_NOT_FOUND} if no account has this id
      */
     User getUserById(UUID id);
 
     /**
      * The account for this email.
      *
-     * @throws com.lmt.fyp.flowerplus.module.user.exception.UserNotFoundException
-     *         if no account has this email
+     * @throws com.lmt.fyp.flowerplus.exception.ApiException
+     *         {@code USER_NOT_FOUND} if no account has this email
      */
     User getByEmail(String email);
 

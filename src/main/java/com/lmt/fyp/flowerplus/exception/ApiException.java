@@ -4,21 +4,23 @@ import com.lmt.fyp.flowerplus.common.ErrorCode;
 import lombok.Getter;
 
 /**
- * Base class for API Exceptions.
+ * An error the client caused, answered during the request. The code decides the
+ * status and {@code errorCode}. Subclass only when an error carries data or is
+ * caught by type.
  */
 @Getter
-public abstract class ApiException extends RuntimeException {
+public class ApiException extends RuntimeException {
 
     private final ErrorCode code;
     private final String devMessage;
 
-    protected ApiException(ErrorCode code) {
+    public ApiException(ErrorCode code) {
         super(code.name());
         this.code = code;
         this.devMessage = null;
     }
 
-    protected ApiException(ErrorCode code, String devMessage) {
+    public ApiException(ErrorCode code, String devMessage) {
         super(devMessage);
         this.code = code;
         this.devMessage = devMessage;

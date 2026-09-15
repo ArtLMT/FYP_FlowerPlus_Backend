@@ -6,6 +6,8 @@ import com.lmt.fyp.flowerplus.module.user.entity.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -49,6 +51,17 @@ class UserAccessTest extends AuthIntegrationSupport {
                         .header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @DisplayName("an id with no user is USER_NOT_FOUND")
+    void unknownIdIsNotFound() throws Exception {
+        String tokenA = accessTokenFor("seeker@example.com");
+
+        mockMvc.perform(get("/api/users/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("USER_NOT_FOUND"));
     }
 
     @Test

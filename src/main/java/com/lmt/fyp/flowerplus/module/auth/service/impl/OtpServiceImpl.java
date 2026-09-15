@@ -1,12 +1,12 @@
 package com.lmt.fyp.flowerplus.module.auth.service.impl;
 
+import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.util.EmailNormalizer;
 import com.lmt.fyp.flowerplus.config.OtpProperties;
+import com.lmt.fyp.flowerplus.exception.ApiException;
 import com.lmt.fyp.flowerplus.module.auth.event.EmailVerifiedEvent;
 import com.lmt.fyp.flowerplus.module.auth.event.OtpRequestedEvent;
-import com.lmt.fyp.flowerplus.module.auth.exception.OtpAttemptsExceededException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpDailyLimitReachedException;
-import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpHasher;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpPurpose;
@@ -75,17 +75,19 @@ public class OtpServiceImpl implements OtpService {
         String normalizedEmail = EmailNormalizer.normalize(email);
 
         String storedHash = otpStore.findHash(purpose, normalizedEmail)
-                .orElseThrow(() -> new OtpInvalidException("Verification code is incorrect or has expired."));
+                .orElseThrow(() -> new ApiException(
+                        ErrorCode.OTP_INVALID, "Verification code is incorrect or has expired."));
 
         long used = otpStore.incrementAttempts(purpose, normalizedEmail);
 
         if (used > otpProperties.maxAttempts()) {
             otpStore.invalidate(purpose, normalizedEmail);
-            throw new OtpAttemptsExceededException("Too many incorrect attempts. Please request a new code.");
+            throw new ApiException(
+                    ErrorCode.OTP_ATTEMPTS_EXCEEDED, "Too many incorrect attempts. Please request a new code.");
         }
 
         if (!otpHasher.matches(code, storedHash)) {
-            throw new OtpInvalidException("Verification code is incorrect or has expired.");
+            throw new ApiException(ErrorCode.OTP_INVALID, "Verification code is incorrect or has expired.");
         }
 
         // Success does NOT consume the code here. The caller finishes its action
