@@ -1,10 +1,9 @@
 package com.lmt.fyp.flowerplus.module.auth.service.impl;
 
-import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.util.EmailNormalizer;
-import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
 import com.lmt.fyp.flowerplus.module.auth.event.EmailVerifiedEvent;
+import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.service.EmailVerificationService;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpPurpose;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpService;
@@ -36,9 +35,15 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
         otpService.verify(OtpPurpose.REGISTRATION, normalizedEmail, code);
 
+        // Same answer as a wrong code: a public endpoint must not say an email has no account.
         User user = userService.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new UnauthorizedException(
-                        ErrorCode.USER_NOT_FOUND, "User not found with email: " + normalizedEmail));
+                .orElseThrow(() -> new OtpInvalidException("Verification code is incorrect or has expired."));
+
+        // A code that outlived activation (its AFTER_COMMIT invalidate failed) must
+        // not act as a login, and must never re-activate a BANNED account.
+        if (user.getStatus() != UserAccountStatus.PENDING) {
+            throw new OtpInvalidException("Verification code is incorrect or has expired.");
+        }
 
         // Dirty checking: the status change flushes when this transaction commits.
         userService.activate(user);

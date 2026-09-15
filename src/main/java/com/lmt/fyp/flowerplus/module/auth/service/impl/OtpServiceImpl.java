@@ -5,6 +5,7 @@ import com.lmt.fyp.flowerplus.config.OtpProperties;
 import com.lmt.fyp.flowerplus.module.auth.event.EmailVerifiedEvent;
 import com.lmt.fyp.flowerplus.module.auth.event.OtpRequestedEvent;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpAttemptsExceededException;
+import com.lmt.fyp.flowerplus.module.auth.exception.OtpDailyLimitReachedException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpHasher;
@@ -19,6 +20,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 
 @Slf4j
 @Service
@@ -28,6 +30,8 @@ public class OtpServiceImpl implements OtpService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int CODE_ORIGIN = 100_000;
     private static final int CODE_BOUND = 900_000;
+    private static final Duration SEND_COUNT_WINDOW = Duration.ofDays(1);
+    private static final Duration MIN_RETRY_AFTER = Duration.ofSeconds(1);
 
     private final OtpStore otpStore;
     private final OtpHasher otpHasher;
@@ -37,15 +41,33 @@ public class OtpServiceImpl implements OtpService {
     @Override
     public void issueOTP(OtpPurpose purpose, String email) {
         String normalizedEmail = EmailNormalizer.normalize(email);
-        if (!otpStore.tryAcquireResendSlot(purpose, normalizedEmail, otpProperties.resendInterval())) {
-            throw new OtpThrottledException("A code was sent recently. Please wait before requesting another.");
-        }
+        throttle(purpose, normalizedEmail);
 
         String code = generateOTP();
 
         otpStore.save(purpose, normalizedEmail, otpHasher.hash(code), otpProperties.ttl());
 
-        eventPublisher.publishEvent(new OtpRequestedEvent(normalizedEmail, code));
+        eventPublisher.publishEvent(new OtpRequestedEvent(purpose, normalizedEmail, code));
+    }
+
+    @Override
+    public void throttle(OtpPurpose purpose, String email) {
+        String normalizedEmail = EmailNormalizer.normalize(email);
+        if (!otpStore.tryAcquireResendSlot(purpose, normalizedEmail, otpProperties.resendInterval())) {
+            throw new OtpThrottledException(
+                    "A code was sent recently. Please wait before requesting another.",
+                    retryAfter(otpStore.resendCooldownRemaining(purpose, normalizedEmail)));
+        }
+
+        // One code survives 5 guesses, but a fresh one every resend interval
+        // would allow thousands of guesses a day against a single account.
+        if (purpose == OtpPurpose.PASSWORD_RESET
+                && otpStore.incrementSendCount(purpose, normalizedEmail, SEND_COUNT_WINDOW)
+                        > otpProperties.resetDailyLimit()) {
+            throw new OtpDailyLimitReachedException(
+                    "Too many reset codes requested today. Please try again tomorrow.",
+                    retryAfter(otpStore.sendWindowRemaining(purpose, normalizedEmail)));
+        }
     }
 
     @Override
@@ -66,18 +88,18 @@ public class OtpServiceImpl implements OtpService {
             throw new OtpInvalidException("Verification code is incorrect or has expired.");
         }
 
-        // Success does NOT consume the code here. EmailVerificationService
-        // activates the account, then publishes EmailVerifiedEvent, and
+        // Success does NOT consume the code here. The caller finishes its action
+        // (activation, password change), then publishes EmailVerifiedEvent, and
         // onEmailVerified() below invalidates the code AFTER_COMMIT — so a code
-        // is spent only once activation is durable. The invalidate above (on the
+        // is spent only once that action is durable. The invalidate above (on the
         // attempt cap) stays immediate: that is a lockout, not a consume.
     }
 
     /**
      * Invalidates a code once its verification transaction has committed.
-     * Runs AFTER_COMMIT and is intentionally NOT @Async: the account is already
-     * active, so a failure here is harmless — the stale code lives out its short
-     * TTL — and must never surface as a request error.
+     * Runs AFTER_COMMIT and is intentionally NOT @Async: the action is already
+     * committed, so a failure here is harmless — the stale code lives out its
+     * short TTL — and must never surface as a request error.
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onEmailVerified(EmailVerifiedEvent event) {
@@ -90,6 +112,12 @@ public class OtpServiceImpl implements OtpService {
             // This log mean verification worked, but the cache can't be delete and will be after it TTL
             log.warn("Failed to invalidate OTP after verification for {}", event.email(), e);
         }
+    }
+
+    // The key can expire between the refusal and the read that follows it;
+    // "retry after 0 seconds" would invite an immediate, still-refused retry.
+    private static Duration retryAfter(Duration remaining) {
+        return remaining.compareTo(MIN_RETRY_AFTER) < 0 ? MIN_RETRY_AFTER : remaining;
     }
 
     private String generateOTP() {

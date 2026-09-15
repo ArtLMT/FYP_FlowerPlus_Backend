@@ -1,5 +1,6 @@
 package com.lmt.fyp.flowerplus.security.oauth2;
 
+import com.lmt.fyp.flowerplus.common.ErrorCode;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,15 +23,16 @@ import java.io.IOException;
  * OAuth2 login is a browser redirect flow, so its failures never reach
  * GlobalExceptionHandler (that only sees controller exceptions). Instead we
  * mirror OAuth2AuthenticationSuccessHandler and redirect back to the frontend
- * with a coarse error code the UI can turn into a message.
+ * with an error code the UI can turn into a message. The values are ErrorCode
+ * names, so the frontend reads one vocabulary for JSON errors and redirects.
  */
 @Component
 public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationFailureHandler {
 
     /** Error code shared with CustomOAuth2UserService; part of the frontend contract. */
-    static final String ACCOUNT_BLOCKED = "account_blocked";
+    static final String ACCOUNT_BLOCKED = ErrorCode.ACCOUNT_BLOCKED.name();
 
-    private static final String GENERIC_FAILURE = "authentication_failed";
+    private static final String GENERIC_FAILURE = ErrorCode.UNAUTHENTICATED.name();
 
     @Value("${application.security.oauth2.authorized-redirect-uri:http://localhost:3000/oauth2/redirect}")
     private String authorizedRedirectUri;

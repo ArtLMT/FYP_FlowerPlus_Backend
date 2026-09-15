@@ -31,6 +31,8 @@ public class User extends TimestampEntity {
     @Column(nullable = false, length = 50)
     private UserRole role;
 
+    // No setter: the lifecycle moves only through activate().
+    @Setter(AccessLevel.NONE)
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private UserAccountStatus status;
@@ -41,4 +43,11 @@ public class User extends TimestampEntity {
 
     @Column(name = "provider_id")
     private String providerId;
+
+    public void activate() {
+        if (status != UserAccountStatus.PENDING) {
+            throw new IllegalStateException("Only a PENDING account can be activated, was " + status);
+        }
+        status = UserAccountStatus.ACTIVE;
+    }
 }

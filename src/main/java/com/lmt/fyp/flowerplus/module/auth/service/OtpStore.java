@@ -30,4 +30,16 @@ public interface OtpStore {
      * @return false if a send is still within the cooldown
      */
     boolean tryAcquireResendSlot(OtpPurpose purpose, String email, Duration interval);
+
+    /**
+     * Counts one send for (purpose, email) and returns the total in the current
+     * window, which opens at the first send and lasts {@code window}. Must be atomic.
+     */
+    long incrementSendCount(OtpPurpose purpose, String email, Duration window);
+
+    /** Time left on the resend cooldown for (purpose, email); zero if none is running. */
+    Duration resendCooldownRemaining(OtpPurpose purpose, String email);
+
+    /** Time left in the current send-count window for (purpose, email); zero if none is open. */
+    Duration sendWindowRemaining(OtpPurpose purpose, String email);
 }

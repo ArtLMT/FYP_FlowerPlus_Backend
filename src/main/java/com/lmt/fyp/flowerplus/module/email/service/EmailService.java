@@ -7,4 +7,6 @@ package com.lmt.fyp.flowerplus.module.email.service;
 public interface EmailService {
 
     void sendOTP(String email, String otp);
+
+    void sendPasswordResetCode(String email, String otp);
 }

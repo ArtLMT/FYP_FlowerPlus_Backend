@@ -87,15 +87,15 @@ class RegistrationTest extends AuthIntegrationSupport {
     }
 
     @Test
-    @DisplayName("a non-UUID path variable is a 400, not a 500")
-    void badPathVariableIsBadRequest() throws Exception {
+    @DisplayName("a non-UUID path variable is a 404, not a 500")
+    void badPathVariableIsNotFound() throws Exception {
         createUser("caller@example.com", PASSWORD, UserAccountStatus.ACTIVE);
         String token = loginTokens("caller@example.com", PASSWORD).get("flowerplus_at").asText();
 
         mockMvc.perform(get("/api/users/not-a-uuid")
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
     }
 
     @Test
@@ -105,6 +105,7 @@ class RegistrationTest extends AuthIntegrationSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ this is not valid json "))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+                .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST"))
+                .andExpect(jsonPath("$.details").doesNotExist());
     }
 }

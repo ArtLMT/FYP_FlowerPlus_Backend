@@ -1,5 +1,6 @@
 package com.lmt.fyp.flowerplus.module.auth.web.dto;
 
+import com.lmt.fyp.flowerplus.common.PasswordPolicy;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,6 +20,7 @@ public class RegisterRequest {
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters long")
+    @Size(min = PasswordPolicy.MIN_LENGTH, message = "Password must be at least 8 characters long")
+    @Size(max = PasswordPolicy.MAX_LENGTH, message = "Password must be at most 72 characters long")
     private String password;
 }

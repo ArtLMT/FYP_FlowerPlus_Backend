@@ -30,13 +30,22 @@ public enum ErrorCode {
     OTP_INVALID(HttpStatus.BAD_REQUEST, "otp.invalid"),
     OTP_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "otp.attemptsExceeded"),
     OTP_THROTTLED(HttpStatus.TOO_MANY_REQUESTS, "otp.throttled"),
+    OTP_DAILY_LIMIT_REACHED(HttpStatus.TOO_MANY_REQUESTS, "otp.dailyLimitReached"),
 
     /* ===================== USER ===================== */
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "user.notFound"),
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "user.emailAlreadyExists"),
+    ADDRESS_NOT_FOUND(HttpStatus.NOT_FOUND, "address.notFound"),
+    ADDRESS_LIMIT_REACHED(HttpStatus.CONFLICT, "address.limitReached"),
 
     /* ===================== VALIDATION ===================== */
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "validation.failed"),
+
+    /* ===================== REQUEST ===================== */
+    MALFORMED_REQUEST(HttpStatus.BAD_REQUEST, "request.malformed"),
+    NOT_FOUND(HttpStatus.NOT_FOUND, "request.notFound"),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "request.methodNotAllowed"),
+    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "request.unsupportedMediaType"),
 
     /* ===================== SECURITY ===================== */
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "security.accessDenied"),

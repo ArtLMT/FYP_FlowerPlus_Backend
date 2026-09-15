@@ -120,6 +120,32 @@ public class AuthController {
     }
 
     /**
+     * POST /api/auth/forgot-password
+     * Always 204, whether or not a code was sent, so it cannot be used to tell
+     * which emails are registered.
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.requestPasswordReset(request.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * POST /api/auth/reset-password
+     * Sets a new password with the emailed code. Every session the account had
+     * is ended, so this browser's cookies are cleared as well.
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request,
+            HttpServletResponse response
+    ) {
+        authService.resetPassword(request.email(), request.code(), request.newPassword());
+        clearTokenCookies(response);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * The refresh token may arrive in the cookie or the body; the cookie wins.
      * Shared by refresh and logout, which resolve it identically.
      */

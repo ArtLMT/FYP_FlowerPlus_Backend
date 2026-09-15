@@ -9,4 +9,19 @@ public interface AuthService {
     void logout(String refreshToken);
 
     TokenPair refresh(String refreshToken);
+
+    /**
+     * Sends a reset code if the email belongs to an ACTIVE or SUSPENDED account.
+     * Looks identical to the caller whatever the outcome.
+     */
+    void requestPasswordReset(String email);
+
+    /**
+     * Sets a new password using a valid reset code, then ends every session the
+     * account has.
+     *
+     * @throws com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException
+     *         if the code is wrong or expired
+     */
+    void resetPassword(String email, String code, String rawNewPassword);
 }

@@ -27,8 +27,11 @@ public class InMemoryOtpStore implements OtpStore {
         }
     }
 
+    private record SendWindow(long count, Instant endsAt) { }
+
     private final Map<String, OtpEntry> otpMap = new ConcurrentHashMap<>();
     private final Map<String, Instant> resendCooldownMap = new ConcurrentHashMap<>();
+    private final Map<String, SendWindow> sendWindows = new ConcurrentHashMap<>();
 
     @Override
     public void save(OtpPurpose purpose, String email, String codeHash, Duration ttl) {
@@ -70,9 +73,44 @@ public class InMemoryOtpStore implements OtpStore {
         return true;
     }
 
+    @Override
+    public long incrementSendCount(OtpPurpose purpose, String email, Duration window) {
+        Instant now = Instant.now();
+        SendWindow updated = sendWindows.compute(key(purpose, email), (k, current) ->
+                current == null || !now.isBefore(current.endsAt())
+                        ? new SendWindow(1, now.plus(window))
+                        : new SendWindow(current.count() + 1, current.endsAt()));
+        return updated.count();
+    }
+
+    @Override
+    public Duration resendCooldownRemaining(OtpPurpose purpose, String email) {
+        return timeUntil(resendCooldownMap.get(key(purpose, email)));
+    }
+
+    @Override
+    public Duration sendWindowRemaining(OtpPurpose purpose, String email) {
+        SendWindow window = sendWindows.get(key(purpose, email));
+        return timeUntil(window == null ? null : window.endsAt());
+    }
+
     public void clear() {
         otpMap.clear();
         resendCooldownMap.clear();
+        sendWindows.clear();
+    }
+
+    /** Lets a test reach the daily cap without waiting out the resend interval between sends. */
+    public void clearResendCooldowns() {
+        resendCooldownMap.clear();
+    }
+
+    private static Duration timeUntil(Instant end) {
+        if (end == null) {
+            return Duration.ZERO;
+        }
+        Duration left = Duration.between(Instant.now(), end);
+        return left.isNegative() ? Duration.ZERO : left;
     }
 
     private static String key(OtpPurpose purpose, String email) {

@@ -70,6 +70,8 @@ class UserAccessTest extends AuthIntegrationSupport {
 
         mockMvc.perform(get("/api/users/" + a.getId()))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.details").doesNotExist());
     }
 }

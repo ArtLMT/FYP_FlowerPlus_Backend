@@ -1,5 +1,7 @@
 package com.lmt.fyp.flowerplus.module.auth.exception;
 
+import java.time.Duration;
+
 /**
  * A new code was requested before the minimum interval had elapsed.
  *
@@ -8,7 +10,16 @@ package com.lmt.fyp.flowerplus.module.auth.exception;
  * address the attacker does not own.
  */
 public class OtpThrottledException extends RuntimeException {
-    public OtpThrottledException(String message) {
+
+    private final Duration retryAfter;
+
+    public OtpThrottledException(String message, Duration retryAfter) {
         super(message);
+        this.retryAfter = retryAfter;
+    }
+
+    /** How long until the same request can succeed. */
+    public Duration getRetryAfter() {
+        return retryAfter;
     }
 }
