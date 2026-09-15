@@ -144,7 +144,8 @@ class AddressCrudTest extends AddressIntegrationSupport {
         mockMvc.perform(get("/api/addresses/" + theirs)
                         .header("Authorization", "Bearer " + ownerToken))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.errorCode").value("ADDRESS_NOT_FOUND"));
+                .andExpect(jsonPath("$.errorCode").value("ADDRESS_NOT_FOUND"))
+                .andExpect(jsonPath("$.details").doesNotExist());
     }
 
     @Test
@@ -192,7 +193,7 @@ class AddressCrudTest extends AddressIntegrationSupport {
                         .content(json(request("   ", false))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"))
-                .andExpect(jsonPath("$.validationErrors.receiverName").exists());
+                .andExpect(jsonPath("$.details.fields[?(@.field == 'receiverName')]").isNotEmpty());
 
         assertThat(addressRepository.findAll()).isEmpty();
     }
@@ -205,14 +206,14 @@ class AddressCrudTest extends AddressIntegrationSupport {
     }
 
     @Test
-    @DisplayName("a malformed address id is a 400, not a 500")
-    void malformedIdIsBadRequest() throws Exception {
+    @DisplayName("a malformed address id is a 404, not a 500")
+    void malformedIdIsNotFound() throws Exception {
         String token = tokenFor(OWNER);
 
         mockMvc.perform(get("/api/addresses/not-a-uuid")
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
     }
 
     @Test

@@ -1,31 +1,30 @@
 package com.lmt.fyp.flowerplus.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
-import java.time.Instant;
 
 /**
  * Invoked when an unauthenticated user tries to access a protected resource.
  * Writes a structured JSON error response with ErrorCode.UNAUTHENTICATED.
+ *
+ * <p>Uses Spring's JsonMapper, not a mapper of its own: this runs outside
+ * Spring MVC, and a separately built mapper serialized the timestamp as a
+ * number while every other error had an ISO-8601 string.
  */
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    private final ObjectMapper objectMapper;
-
-    public JwtAuthenticationEntryPoint() {
-        this.objectMapper = new ObjectMapper();
-        this.objectMapper.registerModule(new JavaTimeModule());
-    }
+    private final JsonMapper jsonMapper;
 
     @Override
     public void commence(
@@ -34,19 +33,13 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             AuthenticationException authException
     ) throws IOException {
 
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        ErrorResponse errorResponse = ErrorResponse.of(
+                ErrorCode.UNAUTHENTICATED,
+                "Authentication is required to access this resource",
+                request.getRequestURI());
+
+        response.setStatus(errorResponse.status());
         response.setContentType("application/json");
-
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .success(false)
-                .status(HttpServletResponse.SC_UNAUTHORIZED)
-                .errorCode(ErrorCode.UNAUTHENTICATED.name())
-                .error("Unauthorized")
-                .message("Authentication is required to access this resource")
-                .path(request.getRequestURI())
-                .timestamp(Instant.now())
-                .build();
-
-        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+        response.getWriter().write(jsonMapper.writeValueAsString(errorResponse));
     }
 }

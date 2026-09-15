@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -95,7 +96,7 @@ class PasswordResetTest extends AuthIntegrationSupport {
         requestReset("nobody@example.com")
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.errorCode").value("OTP_THROTTLED"))
-                .andExpect(jsonPath("$.retryAfterSeconds").isNumber());
+                .andExpect(jsonPath("$.details.retryAfterSeconds").isNumber());
     }
 
     @Test
@@ -109,7 +110,7 @@ class PasswordResetTest extends AuthIntegrationSupport {
         requestReset("nobody@example.com")
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.errorCode").value("OTP_DAILY_LIMIT_REACHED"))
-                .andExpect(jsonPath("$.retryAfterSeconds").isNumber());
+                .andExpect(jsonPath("$.details.retryAfterSeconds").isNumber());
     }
 
     @Test
@@ -131,6 +132,6 @@ class PasswordResetTest extends AuthIntegrationSupport {
         reset(EMAIL, "123456", "short")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"))
-                .andExpect(jsonPath("$.validationRules.newPassword").value("Size"));
+                .andExpect(jsonPath("$.details.fields[?(@.field == 'newPassword')].rule").value(hasItem("Size")));
     }
 }
