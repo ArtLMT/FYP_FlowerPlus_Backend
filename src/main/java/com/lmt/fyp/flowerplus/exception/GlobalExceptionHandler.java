@@ -3,14 +3,8 @@ package com.lmt.fyp.flowerplus.exception;
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.dto.ErrorDetails;
 import com.lmt.fyp.flowerplus.common.dto.ErrorResponse;
-import com.lmt.fyp.flowerplus.module.auth.exception.EmailUsedException;
-import com.lmt.fyp.flowerplus.module.auth.exception.OtpAttemptsExceededException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpDailyLimitReachedException;
-import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
-import com.lmt.fyp.flowerplus.module.user.exception.AddressLimitReachedException;
-import com.lmt.fyp.flowerplus.module.user.exception.AddressNotFoundException;
-import com.lmt.fyp.flowerplus.module.user.exception.UserNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -51,70 +45,24 @@ public class GlobalExceptionHandler {
     }
 
     // ------------------------------------------------------------------ //
-    //  1b. Module exceptions that carry no HTTP knowledge
-    //      Services throw plain domain exceptions; the web layer maps each to
-    //      its status and response shape here.
+    //  1b. Exceptions that carry data
+    //      A plain ApiException has nowhere to put it, so these keep their own
+    //      class and handler.
     // ------------------------------------------------------------------ //
 
-    @ExceptionHandler(UserNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleUserNotFound(
-            UserNotFoundException ex, HttpServletRequest request) {
-        log.warn("[USER_NOT_FOUND] {} — path={}", ex.getMessage(), request.getRequestURI());
-
-        return respond(ErrorResponse.of(ErrorCode.USER_NOT_FOUND, ex.getMessage(), request.getRequestURI()));
-    }
-
-    /** 404 not 403: a 403 would confirm the row exists. */
-    @ExceptionHandler(AddressNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleAddressNotFound(
-            AddressNotFoundException ex, HttpServletRequest request) {
-        log.warn("[ADDRESS_NOT_FOUND] {} — path={}", ex.getMessage(), request.getRequestURI());
-
-        return respond(ErrorResponse.of(ErrorCode.ADDRESS_NOT_FOUND, ex.getMessage(), request.getRequestURI()));
-    }
-
-    @ExceptionHandler(AddressLimitReachedException.class)
-    public ResponseEntity<ErrorResponse> handleAddressLimitReached(
-            AddressLimitReachedException ex, HttpServletRequest request) {
-        log.warn("[ADDRESS_LIMIT_REACHED] {} — path={}", ex.getMessage(), request.getRequestURI());
-
-        return respond(ErrorResponse.of(ErrorCode.ADDRESS_LIMIT_REACHED, ex.getMessage(), request.getRequestURI()));
-    }
-
-    @ExceptionHandler(EmailUsedException.class)
-    public ResponseEntity<ErrorResponse> handleEmailUsed(
-            EmailUsedException ex, HttpServletRequest request) {
-        log.warn("[EMAIL_ALREADY_EXISTS] {} — path={}", ex.getMessage(), request.getRequestURI());
-
-        return respond(ErrorResponse.of(ErrorCode.EMAIL_ALREADY_EXISTS, ex.getMessage(), request.getRequestURI()));
-    }
-
     /**
-     * OTP rejections. All of them are routine, expected outcomes of a public
-     * endpoint, so they are mapped here rather than being left to the catch-all
-     * below, which would report a mistyped code as a 500 with a stack trace.
-     *
-     * <p>Grouped like {@code handleAccountBlocked}: one method, one shape of
-     * response, with only the error code varying. Both throttle codes also say
-     * how long to wait, so the client never has to parse the message.
+     * Both throttle codes say how long to wait, so the client never has to
+     * parse the message. Also catches {@link OtpDailyLimitReachedException},
+     * its subclass.
      */
-    @ExceptionHandler({
-            OtpInvalidException.class,
-            OtpAttemptsExceededException.class,
-            OtpThrottledException.class
-    })
-    public ResponseEntity<ErrorResponse> handleOtpFailure(
-            RuntimeException ex, HttpServletRequest request) {
+    @ExceptionHandler(OtpThrottledException.class)
+    public ResponseEntity<ErrorResponse> handleOtpThrottled(
+            OtpThrottledException ex, HttpServletRequest request) {
 
-        ErrorCode code = switch (ex) {
-            case OtpAttemptsExceededException ignored -> ErrorCode.OTP_ATTEMPTS_EXCEEDED;
-            case OtpDailyLimitReachedException ignored -> ErrorCode.OTP_DAILY_LIMIT_REACHED;
-            case OtpThrottledException ignored -> ErrorCode.OTP_THROTTLED;
-            default -> ErrorCode.OTP_INVALID;
-        };
-        ErrorDetails details = ex instanceof OtpThrottledException throttled
-                ? new ErrorDetails.Retry(throttled.getRetryAfter().toSeconds())
-                : null;
+        ErrorCode code = ex instanceof OtpDailyLimitReachedException
+                ? ErrorCode.OTP_DAILY_LIMIT_REACHED
+                : ErrorCode.OTP_THROTTLED;
+        ErrorDetails details = new ErrorDetails.Retry(ex.getRetryAfter().toSeconds());
 
         log.warn("[{}] {} — path={}", code.name(), ex.getMessage(), request.getRequestURI());
 

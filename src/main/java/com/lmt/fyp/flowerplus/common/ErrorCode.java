@@ -27,6 +27,8 @@ public enum ErrorCode {
     REFRESH_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "auth.refreshTokenInvalid"),
 
     /* ===================== OTP ====================== */
+    // Wrong code, expired code, no code issued and no account are one answer on
+    // purpose: splitting them would reveal which emails are registered.
     OTP_INVALID(HttpStatus.BAD_REQUEST, "otp.invalid"),
     OTP_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "otp.attemptsExceeded"),
     OTP_THROTTLED(HttpStatus.TOO_MANY_REQUESTS, "otp.throttled"),

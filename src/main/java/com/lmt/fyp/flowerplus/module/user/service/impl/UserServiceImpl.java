@@ -1,11 +1,12 @@
 package com.lmt.fyp.flowerplus.module.user.service.impl;
 
 import com.lmt.fyp.flowerplus.common.AuthProvider;
+import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.UserRole;
+import com.lmt.fyp.flowerplus.exception.ApiException;
 import com.lmt.fyp.flowerplus.module.user.entity.User;
 import com.lmt.fyp.flowerplus.module.user.entity.UserProfile;
-import com.lmt.fyp.flowerplus.module.user.exception.UserNotFoundException;
 import com.lmt.fyp.flowerplus.module.user.repository.UserProfileRepository;
 import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
 import com.lmt.fyp.flowerplus.module.user.service.UserService;
@@ -28,13 +29,13 @@ public class UserServiceImpl implements UserService {
     @Override
     public User getUserById(UUID id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND, "User not found with id: " + id));
     }
 
     @Override
     public User getByEmail(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND, "User not found with email: " + email));
     }
 
     @Override

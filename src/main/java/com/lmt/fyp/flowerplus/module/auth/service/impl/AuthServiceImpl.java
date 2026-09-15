@@ -3,11 +3,10 @@ package com.lmt.fyp.flowerplus.module.auth.service.impl;
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.util.EmailNormalizer;
+import com.lmt.fyp.flowerplus.exception.ApiException;
 import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
 import com.lmt.fyp.flowerplus.module.auth.entity.RefreshToken;
 import com.lmt.fyp.flowerplus.module.auth.event.EmailVerifiedEvent;
-import com.lmt.fyp.flowerplus.module.auth.exception.EmailUsedException;
-import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.service.AuthService;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpPurpose;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpService;
@@ -67,7 +66,7 @@ public class AuthServiceImpl implements AuthService {
             // ACTIVE, SUSPENDED or BANNED: an account already owns this email.
             // All three answer with the same 409 so a caller cannot tell a
             // banned address apart from an ordinary registered one.
-            throw new EmailUsedException("Email already registered");
+            throw new ApiException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email already registered");
         }
 
         userService.createPendingAccount(normalizedEmail, passwordEncoder.encode(rawPassword), fullName);
@@ -127,7 +126,8 @@ public class AuthServiceImpl implements AuthService {
         // code was sent. Same answer as a wrong code, so nothing is revealed.
         User user = userService.findByEmail(normalizedEmail)
                 .filter(candidate -> candidate.getStatus().canAuthenticate())
-                .orElseThrow(() -> new OtpInvalidException("Verification code is incorrect or has expired."));
+                .orElseThrow(() -> new ApiException(
+                        ErrorCode.OTP_INVALID, "Verification code is incorrect or has expired."));
 
         userService.updatePassword(user, passwordEncoder.encode(rawNewPassword));
         refreshTokenService.revokeAll(user);

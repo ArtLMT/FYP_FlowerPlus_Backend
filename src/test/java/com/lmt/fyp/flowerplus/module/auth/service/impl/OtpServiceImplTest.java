@@ -1,10 +1,11 @@
 package com.lmt.fyp.flowerplus.module.auth.service.impl;
 
+import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.config.OtpProperties;
+import com.lmt.fyp.flowerplus.exception.ApiException;
 import com.lmt.fyp.flowerplus.fake.InMemoryOtpStore;
 import com.lmt.fyp.flowerplus.module.auth.event.OtpRequestedEvent;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpDailyLimitReachedException;
-import com.lmt.fyp.flowerplus.module.auth.exception.OtpInvalidException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpHasher;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpPurpose;
@@ -92,6 +93,7 @@ class OtpServiceImplTest {
         String code = ((OtpRequestedEvent) published.get(0)).otp();
 
         assertThatThrownBy(() -> service.verify(OtpPurpose.REGISTRATION, EMAIL, code))
-                .isInstanceOf(OtpInvalidException.class);
+                .isInstanceOfSatisfying(ApiException.class,
+                        e -> assertThat(e.getCode()).isEqualTo(ErrorCode.OTP_INVALID));
     }
 }
