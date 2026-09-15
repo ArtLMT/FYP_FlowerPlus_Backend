@@ -37,7 +37,7 @@ proposed in [[Address rules]].
 it, there is no second implementation and no test fake, so an interface would be symmetry only.
 
 ```java
-Page<Address> listFor(User owner, Pageable pageable);
+Page<Address> listFor(User owner);
 Address       getOwned(User owner, UUID addressId);
 Address       addAddress(User owner, String receiverName, String phone, String address, boolean makeDefault);
 Address       updateAddress(User owner, UUID addressId, String receiverName, String phone, String address, boolean makeDefault);
@@ -49,9 +49,9 @@ void          deleteAddress(User owner, UUID addressId);
 
 | Method | Path | Success |
 |---|---|---|
-| `GET` | `/api/addresses` | `200` `PageResponse<AddressResponse>`, default first |
+| `GET` | `/api/addresses` | `200` `PageResponse<AddressResponse>`: always the first page of 20, default first then newest. No request parameters — `page`, `size` and `sort` are ignored |
 | `GET` | `/api/addresses/{id}` | `200` |
-| `POST` | `/api/addresses` | `201` + `Location` |
+| `POST` | `/api/addresses` | `201` + `Location`; `409 ADDRESS_LIMIT_REACHED` when the customer already has 20 |
 | `PUT` | `/api/addresses/{id}` | `200` |
 | `PUT` | `/api/addresses/{id}/default` | `200` |
 | `DELETE` | `/api/addresses/{id}` | `204` |
@@ -71,6 +71,10 @@ void          deleteAddress(User owner, UUID addressId);
 4. **Deleting the default promotes the oldest remaining address.** Deletion is a real `DELETE`:
    `orders` snapshots `delivery_address` / `recipient_name` / `recipient_phone` as text with no FK
    here, so no order history can be orphaned.
+5. **At most 20 addresses per customer** (BR-ADDR-12). The list is always the first page of 20 and
+   the request cannot ask for another, so a 21st address could never be shown; `addAddress` refuses
+   it with `409 ADDRESS_LIMIT_REACHED`. One constant in `AddressService` is both the limit and the
+   page size.
 
 ## Traps
 

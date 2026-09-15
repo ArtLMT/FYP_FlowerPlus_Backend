@@ -2,12 +2,13 @@ package com.lmt.fyp.flowerplus.module.user.service;
 
 import com.lmt.fyp.flowerplus.module.user.entity.Address;
 import com.lmt.fyp.flowerplus.module.user.entity.User;
+import com.lmt.fyp.flowerplus.module.user.exception.AddressLimitReachedException;
 import com.lmt.fyp.flowerplus.module.user.exception.AddressNotFoundException;
 import com.lmt.fyp.flowerplus.module.user.repository.AddressRepository;
 import com.lmt.fyp.flowerplus.module.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,12 +19,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AddressService {
 
+    // Also the list's page size. The list is always its first page, so the two
+    // must stay equal or addresses past that page could never be shown.
+    private static final int MAX_ADDRESSES_PER_USER = 20;
+
     private final AddressRepository addressRepository;
     private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
-    public Page<Address> listFor(User owner, Pageable pageable) {
-        return addressRepository.findByUserId(owner.getId(), pageable);
+    public Page<Address> listFor(User owner) {
+        return addressRepository.findByUserIdOrderByIsDefaultDescCreatedAtDesc(
+                owner.getId(), PageRequest.of(0, MAX_ADDRESSES_PER_USER));
     }
 
     @Transactional(readOnly = true)
@@ -37,6 +43,11 @@ public class AddressService {
     public Address addAddress(User owner, String receiverName, String phone,
                               String address, boolean makeDefault) {
         UUID ownerId = owner.getId();
+        if (addressRepository.countByUserId(ownerId) >= MAX_ADDRESSES_PER_USER) {
+            throw new AddressLimitReachedException(
+                    "A customer can save at most " + MAX_ADDRESSES_PER_USER + " addresses.");
+        }
+
         boolean isDefault = makeDefault || !addressRepository.existsByUserId(ownerId);
 
         if (isDefault) {

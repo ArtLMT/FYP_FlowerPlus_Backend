@@ -15,12 +15,14 @@ import java.util.UUID;
 @Repository
 public interface AddressRepository extends JpaRepository<Address, UUID> {
 
-    Page<Address> findByUserId(UUID userId, Pageable pageable);
+    Page<Address> findByUserIdOrderByIsDefaultDescCreatedAtDesc(UUID userId, Pageable pageable);
 
     /** Scoped by owner deliberately: somebody else's id must 404, not 403. */
     Optional<Address> findByIdAndUserId(UUID id, UUID userId);
 
     boolean existsByUserId(UUID userId);
+
+    long countByUserId(UUID userId);
 
     Optional<Address> findFirstByUserIdOrderByCreatedAtAsc(UUID userId);
 

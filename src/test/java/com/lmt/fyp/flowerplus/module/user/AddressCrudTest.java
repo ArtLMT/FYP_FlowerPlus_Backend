@@ -183,6 +183,42 @@ class AddressCrudTest extends AddressIntegrationSupport {
     }
 
     @Test
+    @DisplayName("page, size and sort sent with the list request are ignored")
+    void listIgnoresPagingParameters() throws Exception {
+        String token = tokenFor(OWNER);
+        createAddress(token, "Alice", false);
+        UUID promoted = createAddress(token, "Bob", true);
+
+        mockMvc.perform(get("/api/addresses")
+                        .param("page", "3")
+                        .param("size", "1")
+                        .param("sort", "nope")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(promoted.toString()));
+    }
+
+    @Test
+    @DisplayName("a customer can save at most 20 addresses")
+    void addressLimitIsEnforced() throws Exception {
+        String token = tokenFor(OWNER);
+        for (int i = 0; i < 20; i++) {
+            createAddress(token, "Receiver " + i, false);
+        }
+
+        mockMvc.perform(post("/api/addresses")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(request("One too many", false))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("ADDRESS_LIMIT_REACHED"));
+
+        assertThat(addressRepository.count()).isEqualTo(20);
+    }
+
+    @Test
     @DisplayName("a blank receiver name is rejected as a 400")
     void blankReceiverNameIsRejected() throws Exception {
         String token = tokenFor(OWNER);
