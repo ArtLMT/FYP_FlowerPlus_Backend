@@ -14,8 +14,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 // Read-only by default; every write below overrides it explicitly.
 @Service
@@ -41,6 +45,15 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserProfile getProfile(User user) {
         return userProfileRepository.findByUser(user).orElse(null);
+    }
+
+    @Override
+    public Map<UUID, UserProfile> getProfiles(Collection<User> users) {
+        if (users.isEmpty()) {
+            return Map.of();
+        }
+        return userProfileRepository.findByUserIn(users).stream()
+                .collect(Collectors.toMap(profile -> profile.getUser().getId(), Function.identity()));
     }
 
     @Override

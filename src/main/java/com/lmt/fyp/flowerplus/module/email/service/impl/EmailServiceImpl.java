@@ -38,6 +38,16 @@ public class EmailServiceImpl implements EmailService {
                 "If you did not ask to reset your password, you can safely ignore this email — your password will not change.");
     }
 
+    @Override
+    public void sendStaffInvitation(String email, String otp) {
+        sendCode(email, otp,
+                "Welcome to FlowerPlus — set your password",
+                "set-up code",
+                "Set your password",
+                "An administrator created a FlowerPlus staff account for you. Enter the code below to set your password and sign in.",
+                "If you were not expecting this, you can safely ignore this email — the account cannot be used until a password is set.");
+    }
+
     /** One layout for every code email; only the wording changes. */
     private void sendCode(String email, String otp, String subject, String codeLabel,
                           String heading, String lead, String ignoreNote) {

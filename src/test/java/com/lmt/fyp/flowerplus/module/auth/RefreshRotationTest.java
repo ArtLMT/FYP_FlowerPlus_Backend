@@ -1,7 +1,7 @@
 package com.lmt.fyp.flowerplus.module.auth;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -17,26 +17,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Integration tests for refresh-token rotation and reuse detection (item 11).
  *
- * <p>Tokens are sent in the JSON body, never a cookie — the endpoint prefers a
- * cookie over the body, so a cookie would silently carry the rotated token
- * forward and we'd never be replaying the old one.
+ * <p>Each call sends exactly the token under test as the cookie. MockMvc keeps
+ * no cookie jar between requests, so an old token really is replayed.
  */
 class RefreshRotationTest extends AuthIntegrationSupport {
 
     private static final String PASSWORD = "Password123!";
 
-    /** POST /api/auth/refresh with the token in the body. */
+    /** POST /api/auth/refresh with the token as the refresh cookie. */
     private ResultActions refresh(String refreshToken) throws Exception {
         return mockMvc.perform(post("/api/auth/refresh")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json(Map.of("flowerplus_rt", refreshToken))));
+                .cookie(new Cookie("flowerplus_rt", refreshToken)));
     }
 
     /** Create an ACTIVE user and log in, returning a live refresh token. */
     private String loginAndGetRefreshToken(String email) throws Exception {
         createUser(email, PASSWORD, UserAccountStatus.ACTIVE);
-        JsonNode tokens = loginTokens(email, PASSWORD);
-        return tokens.get("flowerplus_rt").asText();
+        return loginTokens(email, PASSWORD).refresh();
     }
 
     @Test
@@ -44,10 +41,7 @@ class RefreshRotationTest extends AuthIntegrationSupport {
     void refreshRotatesTheToken() throws Exception {
         String rt1 = loginAndGetRefreshToken("rotate@example.com");
 
-        String rt2 = objectMapper.readTree(
-                        refresh(rt1).andExpect(status().isOk())
-                                .andReturn().getResponse().getContentAsString())
-                .get("flowerplus_rt").asText();
+        String rt2 = Tokens.from(refresh(rt1).andExpect(status().isNoContent()).andReturn()).refresh();
 
         assertThat(rt2).isNotEqualTo(rt1);
     }
@@ -57,9 +51,9 @@ class RefreshRotationTest extends AuthIntegrationSupport {
     void replayingARotatedTokenIsRejected() throws Exception {
         String rt1 = loginAndGetRefreshToken("replay@example.com");
 
-        refresh(rt1).andExpect(status().isOk());   // rotates rt1 away
+        refresh(rt1).andExpect(status().isNoContent());   // rotates rt1 away
 
-        refresh(rt1)                                 // rt1 is now a spent tombstone
+        refresh(rt1)                                        // rt1 is now a spent tombstone
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("REFRESH_TOKEN_INVALID"));
     }
@@ -69,10 +63,7 @@ class RefreshRotationTest extends AuthIntegrationSupport {
     void reuseWipesTheFamily() throws Exception {
         String rt1 = loginAndGetRefreshToken("family@example.com");
 
-        String rt2 = objectMapper.readTree(
-                        refresh(rt1).andExpect(status().isOk())
-                                .andReturn().getResponse().getContentAsString())
-                .get("flowerplus_rt").asText();
+        String rt2 = Tokens.from(refresh(rt1).andExpect(status().isNoContent()).andReturn()).refresh();
 
         // Replay the spent rt1 -> reuse detected -> every token for this user dropped.
         refresh(rt1).andExpect(status().isUnauthorized());
@@ -89,5 +80,20 @@ class RefreshRotationTest extends AuthIntegrationSupport {
         refresh("this-token-was-never-issued")
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("REFRESH_TOKEN_INVALID"));
+    }
+
+    @Test
+    @DisplayName("a valid token sent only in the body counts as missing")
+    void tokenInBodyIsIgnored() throws Exception {
+        String rt1 = loginAndGetRefreshToken("body@example.com");
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("flowerplus_rt", rt1))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("REFRESH_TOKEN_INVALID"));
+
+        // Not consumed: the same token still rotates when sent as the cookie.
+        refresh(rt1).andExpect(status().isNoContent());
     }
 }

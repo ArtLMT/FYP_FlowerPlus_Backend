@@ -3,6 +3,8 @@ package com.lmt.fyp.flowerplus.module.user.service;
 import com.lmt.fyp.flowerplus.module.user.entity.User;
 import com.lmt.fyp.flowerplus.module.user.entity.UserProfile;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,6 +31,10 @@ public interface UserService {
 
     /** The user's profile, or {@code null} if none has been created yet. */
     UserProfile getProfile(User user);
+
+    /** Profiles for a set of users, keyed by user id, in one query. Users with no
+     *  profile are simply absent from the map. */
+    Map<UUID, UserProfile> getProfiles(Collection<User> users);
 
     /** Optional variant for callers that branch on absence; see {@link #getByEmail}. */
     Optional<User> findByEmail(String email);

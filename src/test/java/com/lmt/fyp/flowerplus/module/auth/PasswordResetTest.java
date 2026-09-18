@@ -2,6 +2,7 @@ package com.lmt.fyp.flowerplus.module.auth;
 
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpPurpose;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -65,14 +66,13 @@ class PasswordResetTest extends AuthIntegrationSupport {
     @DisplayName("a reset ends every existing session")
     void resetEndsSessions() throws Exception {
         createUser(EMAIL, OLD_PASSWORD, UserAccountStatus.ACTIVE);
-        String refreshToken = loginTokens(EMAIL, OLD_PASSWORD).get("flowerplus_rt").asText();
+        String refreshToken = loginTokens(EMAIL, OLD_PASSWORD).refresh();
 
         requestReset(EMAIL).andExpect(status().isNoContent());
         reset(EMAIL, awaitOtp(1), NEW_PASSWORD).andExpect(status().isNoContent());
 
         mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("flowerplus_rt", refreshToken))))
+                        .cookie(new Cookie("flowerplus_rt", refreshToken)))
                 .andExpect(status().isUnauthorized());
     }
 

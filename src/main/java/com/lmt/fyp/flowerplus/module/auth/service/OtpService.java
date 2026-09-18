@@ -22,4 +22,16 @@ public interface OtpService {
     void throttle(OtpPurpose purpose, String email);
 
     void verify(OtpPurpose purpose, String email, String code);
+
+    /**
+     * Issues a first-password code for a newly created Staff account and
+     * publishes it for delivery as a welcome email. The code is stored under
+     * {@link OtpPurpose#PASSWORD_RESET}, so the ordinary reset-password endpoint
+     * sets the password — only the delivery wording differs. It spends exactly
+     * the same send limits as a reset, so an invitation for an email that was
+     * just sent a reset code is throttled (a documented, tolerated edge).
+     *
+     * @throws com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException if a send limit is hit
+     */
+    void issueStaffInvitation(String email);
 }

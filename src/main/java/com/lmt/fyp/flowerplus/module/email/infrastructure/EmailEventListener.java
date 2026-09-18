@@ -1,6 +1,7 @@
 package com.lmt.fyp.flowerplus.module.email.infrastructure;
 
 import com.lmt.fyp.flowerplus.module.auth.event.OtpRequestedEvent;
+import com.lmt.fyp.flowerplus.module.auth.event.StaffInvitationRequestedEvent;
 import com.lmt.fyp.flowerplus.module.email.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,19 @@ public class EmailEventListener {
             }
         } catch (Exception e) {
             log.error("Failed to send OTP to " + event.email(), e);
+        }
+    }
+
+    @Async
+    // Same delivery contract as onOtpRequested: AFTER_COMMIT with fallbackExecution,
+    // because auth issues the invitation code outside any transaction (from the
+    // async staff-created listener).
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onStaffInvitationRequested(StaffInvitationRequestedEvent event) {
+        try {
+            emailService.sendStaffInvitation(event.email(), event.otp());
+        } catch (Exception e) {
+            log.error("Failed to send staff invitation to " + event.email(), e);
         }
     }
 }

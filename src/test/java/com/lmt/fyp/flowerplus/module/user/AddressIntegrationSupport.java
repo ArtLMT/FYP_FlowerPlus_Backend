@@ -86,11 +86,16 @@ abstract class AddressIntegrationSupport {
     }
 
     protected User createUser(String email) {
+        return createUser(email, UserRole.CUSTOMER);
+    }
+
+    /** Create an ACTIVE account with the given role. */
+    protected User createUser(String email, UserRole role) {
         User saved = userRepository.save(User.builder()
                 .username(email)
                 .email(email)
                 .password(passwordEncoder.encode(PASSWORD))
-                .role(UserRole.CUSTOMER)
+                .role(role)
                 .status(UserAccountStatus.ACTIVE)
                 .provider(AuthProvider.LOCAL)
                 .build());
@@ -101,16 +106,20 @@ abstract class AddressIntegrationSupport {
         return saved;
     }
 
-    /** Create an ACTIVE account and return a bearer token for it. */
+    /** Create an ACTIVE CUSTOMER and return a bearer token for it. */
     protected String tokenFor(String email) throws Exception {
-        createUser(email);
+        return tokenFor(email, UserRole.CUSTOMER);
+    }
+
+    /** Create an ACTIVE account with the given role and return a bearer token. */
+    protected String tokenFor(String email, UserRole role) throws Exception {
+        createUser(email, role);
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("email", email, "password", PASSWORD))))
-                .andExpect(status().isOk())
+                .andExpect(status().isNoContent())
                 .andReturn();
-        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        return body.get("flowerplus_at").asText();
+        return result.getResponse().getCookie("flowerplus_at").getValue();
     }
 
     protected AddressRequest request(String receiverName, boolean isDefault) {

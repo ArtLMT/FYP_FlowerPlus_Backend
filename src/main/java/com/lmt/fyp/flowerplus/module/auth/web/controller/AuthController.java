@@ -1,7 +1,7 @@
 package com.lmt.fyp.flowerplus.module.auth.web.controller;
 
 import com.lmt.fyp.flowerplus.common.ErrorCode;
-import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
+import com.lmt.fyp.flowerplus.exception.ApiException;
 import com.lmt.fyp.flowerplus.module.auth.service.AuthService;
 import com.lmt.fyp.flowerplus.module.auth.service.EmailVerificationService;
 import com.lmt.fyp.flowerplus.module.auth.service.TokenPair;
@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.*;
 /**
  * Public authentication endpoints — no JWT required.
  * All routes here are whitelisted in SecurityConfig.
+ *
+ * <p>Tokens travel only in the two HttpOnly cookies, never in a response body
+ * or as a request body, so page scripts can never read them.
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -47,10 +50,10 @@ public class AuthController {
 
     /**
      * POST /api/auth/login
-     * Authenticates an existing user and returns access + refresh tokens.
+     * Authenticates an existing user. 204; both token cookies are set.
      */
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(
+    public ResponseEntity<Void> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletResponse response
     ) {
@@ -60,18 +63,16 @@ public class AuthController {
 
     /**
      * POST /api/auth/refresh
-     * Validates a refresh token and returns a new access token.
+     * Rotates the refresh token from its cookie. 204; both token cookies are
+     * replaced. A token sent any other way counts as missing.
      */
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refresh(
-            @RequestBody(required = false) RefreshTokenRequest requestBody,
-            @CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshTokenCookie,
+    public ResponseEntity<Void> refresh(
+            @CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshToken,
             HttpServletResponse response
     ) {
-        String refreshToken = resolveRefreshToken(requestBody, refreshTokenCookie);
-
         if (refreshToken == null || refreshToken.isBlank()) {
-            throw new UnauthorizedException(ErrorCode.REFRESH_TOKEN_INVALID, "Refresh token is missing");
+            throw new ApiException(ErrorCode.REFRESH_TOKEN_INVALID, "Refresh token is missing");
         }
 
         TokenPair tokens = authService.refresh(refreshToken);
@@ -80,16 +81,13 @@ public class AuthController {
 
     /**
      * POST /api/auth/logout
-     * Revokes the refresh token and clears both cookies.
+     * Revokes the refresh token from its cookie and clears both cookies.
      */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            @RequestBody(required = false) RefreshTokenRequest requestBody,
-            @CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshTokenCookie,
+            @CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshToken,
             HttpServletResponse response
     ) {
-        String refreshToken = resolveRefreshToken(requestBody, refreshTokenCookie);
-
         if (refreshToken != null && !refreshToken.isBlank()) {
             authService.logout(refreshToken);
         }
@@ -110,8 +108,13 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * POST /api/auth/verify-email
+     * Activates a pending account with its emailed code and signs it in. 204;
+     * both token cookies are set.
+     */
     @PostMapping("/verify-email")
-    public ResponseEntity<AuthResponse> verifyEmail(
+    public ResponseEntity<Void> verifyEmail(
             @Valid @RequestBody VerifyOtpRequest request,
             HttpServletResponse response
     ) {
@@ -145,24 +148,9 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * The refresh token may arrive in the cookie or the body; the cookie wins.
-     * Shared by refresh and logout, which resolve it identically.
-     */
-    private String resolveRefreshToken(RefreshTokenRequest requestBody, String refreshTokenCookie) {
-        if (refreshTokenCookie != null) {
-            return refreshTokenCookie;
-        }
-        return requestBody != null ? requestBody.getRefreshToken() : null;
-    }
-
-    private ResponseEntity<AuthResponse> respondWithTokens(TokenPair tokens, HttpServletResponse response) {
+    private ResponseEntity<Void> respondWithTokens(TokenPair tokens, HttpServletResponse response) {
         setTokenCookies(response, tokens);
-
-        return ResponseEntity.ok(AuthResponse.builder()
-                .accessToken(tokens.accessToken())
-                .refreshToken(tokens.refreshToken())
-                .build());
+        return ResponseEntity.noContent().build();
     }
 
     private void setTokenCookies(HttpServletResponse response, TokenPair tokens) {

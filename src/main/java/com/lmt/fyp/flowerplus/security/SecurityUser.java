@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * SPRING SECURITY PRINCIPAL — a security-layer adapter.
@@ -19,12 +20,14 @@ import java.util.List;
  */
 public class SecurityUser implements UserDetails {
 
+    private final UUID id;
     private final String email;
     private final String password;
     private final UserRole role;
     private final UserAccountStatus status;
 
-    public SecurityUser(String email, String password, UserRole role, UserAccountStatus status) {
+    public SecurityUser(UUID id, String email, String password, UserRole role, UserAccountStatus status) {
+        this.id = id;
         this.email = email;
         this.password = password;
         this.role = role;
@@ -33,7 +36,12 @@ public class SecurityUser implements UserDetails {
 
     /** Build a security principal from a persistence entity. */
     public static SecurityUser fromEntity(User user) {
-        return new SecurityUser(user.getEmail(), user.getPassword(), user.getRole(), user.getStatus());
+        return new SecurityUser(user.getId(), user.getEmail(), user.getPassword(), user.getRole(), user.getStatus());
+    }
+
+    /** The account's id; what auditing records as the author of a write. */
+    public UUID getId() {
+        return id;
     }
 
     /**

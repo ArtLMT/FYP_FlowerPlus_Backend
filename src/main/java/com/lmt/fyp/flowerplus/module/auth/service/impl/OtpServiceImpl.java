@@ -6,6 +6,7 @@ import com.lmt.fyp.flowerplus.config.OtpProperties;
 import com.lmt.fyp.flowerplus.exception.ApiException;
 import com.lmt.fyp.flowerplus.module.auth.event.EmailVerifiedEvent;
 import com.lmt.fyp.flowerplus.module.auth.event.OtpRequestedEvent;
+import com.lmt.fyp.flowerplus.module.auth.event.StaffInvitationRequestedEvent;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpDailyLimitReachedException;
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
 import com.lmt.fyp.flowerplus.module.auth.service.OtpHasher;
@@ -43,11 +44,28 @@ public class OtpServiceImpl implements OtpService {
         String normalizedEmail = EmailNormalizer.normalize(email);
         throttle(purpose, normalizedEmail);
 
-        String code = generateOTP();
-
-        otpStore.save(purpose, normalizedEmail, otpHasher.hash(code), otpProperties.ttl());
+        String code = mintAndStore(purpose, normalizedEmail);
 
         eventPublisher.publishEvent(new OtpRequestedEvent(purpose, normalizedEmail, code));
+    }
+
+    @Override
+    public void issueStaffInvitation(String email) {
+        String normalizedEmail = EmailNormalizer.normalize(email);
+        // Namespaced as PASSWORD_RESET on purpose: the same reset-password
+        // endpoint then sets the staff member's first password. Only the email
+        // that carries the code (a welcome, not a reset) differs.
+        throttle(OtpPurpose.PASSWORD_RESET, normalizedEmail);
+
+        String code = mintAndStore(OtpPurpose.PASSWORD_RESET, normalizedEmail);
+
+        eventPublisher.publishEvent(new StaffInvitationRequestedEvent(normalizedEmail, code));
+    }
+
+    private String mintAndStore(OtpPurpose purpose, String normalizedEmail) {
+        String code = generateOTP();
+        otpStore.save(purpose, normalizedEmail, otpHasher.hash(code), otpProperties.ttl());
+        return code;
     }
 
     @Override
