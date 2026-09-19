@@ -137,8 +137,9 @@ differently, a structured field — never the text of `message`:
 ### Alternatives considered
 
 - **Bring back an envelope for every response** (`{success, code, message, data}`). Would move every
-  success body under `data`, break the frozen `AuthRegressionTest` (it asserts top-level
-  `$.flowerplus_at`, `$.message`, `$.errorCode`) and the `returnObject.email` check above.
+  success body under `data`, break the frozen `AuthRegressionTest` (it asserted top-level
+  `$.flowerplus_at`, `$.message`, `$.errorCode`; tokens left the body on 2026-09-15, see
+  `docs/modules/auth.md`) and the `returnObject.email` check above.
 - **One generic `details` object on `ErrorResponse`.** More flexible, but a frontend developer could not
   tell from the code catalogue what each error carries.
 - **Translate `message` on the backend** through `messageKey`, a messages file and `Accept-Language`.
