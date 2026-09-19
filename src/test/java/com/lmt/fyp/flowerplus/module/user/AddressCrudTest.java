@@ -1,5 +1,6 @@
 package com.lmt.fyp.flowerplus.module.user;
 
+import com.lmt.fyp.flowerplus.common.UserRole;
 import com.lmt.fyp.flowerplus.module.user.entity.Address;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -135,14 +136,16 @@ class AddressCrudTest extends AddressIntegrationSupport {
     }
 
     @Test
-    @DisplayName("reading somebody else's address returns 404, not 403")
-    void crossUserReadIsNotFound() throws Exception {
+    @DisplayName("updating somebody else's address returns 404, not 403")
+    void crossUserUpdateIsNotFound() throws Exception {
         String otherToken = tokenFor(OTHER);
         UUID theirs = createAddress(otherToken, "Theirs", false);
         String ownerToken = tokenFor(OWNER);
 
-        mockMvc.perform(get("/api/addresses/" + theirs)
-                        .header("Authorization", "Bearer " + ownerToken))
+        mockMvc.perform(put("/api/addresses/" + theirs)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(request("Hijacked", false))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("ADDRESS_NOT_FOUND"))
                 .andExpect(jsonPath("$.details").doesNotExist());
@@ -246,10 +249,61 @@ class AddressCrudTest extends AddressIntegrationSupport {
     void malformedIdIsNotFound() throws Exception {
         String token = tokenFor(OWNER);
 
-        mockMvc.perform(get("/api/addresses/not-a-uuid")
+        mockMvc.perform(delete("/api/addresses/not-a-uuid")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("GET on a single address is 405 — the owner has no read-one endpoint")
+    void singleAddressGetIsMethodNotAllowed() throws Exception {
+        String token = tokenFor(OWNER);
+        UUID mine = createAddress(token, "Alice", false);
+
+        mockMvc.perform(get("/api/addresses/" + mine)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().exists("Allow"))
+                .andExpect(jsonPath("$.errorCode").value("METHOD_NOT_ALLOWED"));
+    }
+
+    @Test
+    @DisplayName("an Admin can look up any customer's address by id (BR-ADDR-13)")
+    void adminReadsAnyAddress() throws Exception {
+        String ownerToken = tokenFor(OWNER);
+        UUID theirs = createAddress(ownerToken, "Alice", false);
+        String adminToken = tokenFor("admin@example.com", UserRole.ADMIN);
+
+        mockMvc.perform(get("/api/admin/addresses/" + theirs)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(theirs.toString()))
+                .andExpect(jsonPath("$.receiverName").value("Alice"));
+    }
+
+    @Test
+    @DisplayName("a Staff member cannot see a customer's address (BR-ADDR-13)")
+    void staffCannotUseAdminAddressLookup() throws Exception {
+        String ownerToken = tokenFor(OWNER);
+        UUID theirs = createAddress(ownerToken, "Alice", false);
+        String staffToken = tokenFor("staff@example.com", UserRole.STAFF);
+
+        mockMvc.perform(get("/api/admin/addresses/" + theirs)
+                        .header("Authorization", "Bearer " + staffToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @DisplayName("an id with no address is ADDRESS_NOT_FOUND for the Admin")
+    void adminUnknownAddressIsNotFound() throws Exception {
+        String adminToken = tokenFor("admin@example.com", UserRole.ADMIN);
+
+        mockMvc.perform(get("/api/admin/addresses/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("ADDRESS_NOT_FOUND"));
     }
 
     @Test

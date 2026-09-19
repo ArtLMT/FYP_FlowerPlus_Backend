@@ -1,8 +1,8 @@
 package com.lmt.fyp.flowerplus.module.auth.service.impl;
 
 import com.lmt.fyp.flowerplus.common.ErrorCode;
-import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
 import com.lmt.fyp.flowerplus.module.auth.entity.RefreshToken;
+import com.lmt.fyp.flowerplus.module.auth.exception.RefreshTokenRejectedException;
 import com.lmt.fyp.flowerplus.module.auth.repository.RefreshTokenRepository;
 import com.lmt.fyp.flowerplus.module.auth.service.RefreshTokenService;
 import com.lmt.fyp.flowerplus.module.user.entity.User;
@@ -49,10 +49,10 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
      * rejection. Expiry is left to TokenCleanupScheduler, as before.
      */
     @Override
-    @Transactional(noRollbackFor = UnauthorizedException.class)
+    @Transactional(noRollbackFor = RefreshTokenRejectedException.class)
     public RefreshToken rotate(String token) {
         RefreshToken current = refreshTokenRepository.findByTokenWithUser(token)
-                .orElseThrow(() -> new UnauthorizedException(ErrorCode.REFRESH_TOKEN_INVALID));
+                .orElseThrow(() -> new RefreshTokenRejectedException(ErrorCode.REFRESH_TOKEN_INVALID));
 
         // Reuse detection: a token already retired (revoked) is being replayed.
         // Either someone is replaying a rotated token, or a logged-out token was
@@ -60,11 +60,11 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         // holds, forcing a fresh login.
         if (current.isRevoked()) {
             refreshTokenRepository.deleteByUser(current.getUser());
-            throw new UnauthorizedException(ErrorCode.REFRESH_TOKEN_INVALID);
+            throw new RefreshTokenRejectedException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
         if (current.getExpiryDate().isBefore(Instant.now())) {
-            throw new UnauthorizedException(ErrorCode.REFRESH_TOKEN_EXPIRED);
+            throw new RefreshTokenRejectedException(ErrorCode.REFRESH_TOKEN_EXPIRED);
         }
 
         // Rotate: retire the presented token and issue a fresh one. The retired

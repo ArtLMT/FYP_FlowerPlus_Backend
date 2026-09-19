@@ -6,6 +6,8 @@ import com.lmt.fyp.flowerplus.security.oauth2.OAuth2AuthenticationSuccessHandler
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -20,7 +22,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * Public endpoints : /auth/**  (register & login)
  *                    /oauth2/** and /login/oauth2/** (OAuth2 authentication)
  *                    /swagger-ui/**  and  /v3/api-docs/**  (OpenAPI docs)
+ * Staff and Admin  : /api/manage/**
+ * Admin only       : /api/admin/**
  * Protected        : everything else requires a valid JWT.
+ *
+ * Roles and prefixes: docs/modules/user.md. The URL rules are a second layer;
+ * management endpoints still carry @PreAuthorize.
  */
 @Configuration
 @EnableWebSecurity
@@ -60,6 +67,9 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
+                        // Management prefixes; ADMIN passes STAFF through roleHierarchy()
+                        .requestMatchers("/api/manage/**").hasRole("STAFF")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Every other request must carry a valid JWT
                         .anyRequest().authenticated()
                 )
@@ -90,5 +100,17 @@ public class SecurityConfig {
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /**
+     * ADMIN passes every STAFF check. Nothing is implied for CUSTOMER
+     * (Permissions #5 is still open). Static so method security picks it up
+     * before this configuration class is created.
+     */
+    @Bean
+    static RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.withDefaultRolePrefix()
+                .role("ADMIN").implies("STAFF")
+                .build();
     }
 }

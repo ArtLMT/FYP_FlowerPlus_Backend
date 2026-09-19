@@ -12,17 +12,14 @@ import lombok.Getter;
 public class ApiException extends RuntimeException {
 
     private final ErrorCode code;
-    private final String devMessage;
 
     public ApiException(ErrorCode code) {
         super(code.name());
         this.code = code;
-        this.devMessage = null;
     }
 
     public ApiException(ErrorCode code, String devMessage) {
         super(devMessage);
         this.code = code;
-        this.devMessage = devMessage;
     }
 }

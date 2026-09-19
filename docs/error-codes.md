@@ -96,16 +96,16 @@ On a protected path, a request without a token is `401 UNAUTHENTICATED` before a
 | `OTP_ATTEMPTS_EXCEEDED` | 429 | Too many wrong guesses; the code is destroyed | Ask for a new code |
 | `OTP_THROTTLED` | 429 | A new code requested within the resend interval (60 s by default) | Count down `details.retryAfterSeconds` |
 | `OTP_DAILY_LIMIT_REACHED` | 429 | Password reset only: the daily number of codes for this email is used up (5 by default) | "Try again later"; `details.retryAfterSeconds` is the rest of the window |
-| `USER_NOT_FOUND` | 404 | A user id that does not exist — `GET /api/users/{id}` today, admin user lookups later. Never from a public auth endpoint. | Depends on screen |
-| `EMAIL_ALREADY_EXISTS` | 409 | Register with an email that already has an account | Offer login or password reset |
-| `ADDRESS_NOT_FOUND` | 404 | An address that does not exist **or belongs to someone else** | Treat as gone |
+| `USER_NOT_FOUND` | 404 | A user id that does not exist — the Admin lookup `GET /api/admin/users/{id}`, or a non-STAFF id on the `/api/admin/staff/{id}/deactivate`/`/reactivate` endpoints. Never from a public auth endpoint. | Depends on screen |
+| `EMAIL_ALREADY_EXISTS` | 409 | Register with an email that already has an account, or an Admin creating a Staff account (`POST /api/admin/staff`) on an email owned by an ACTIVE/SUSPENDED/BANNED account | Offer login or password reset |
+| `ADDRESS_NOT_FOUND` | 404 | An address that does not exist **or belongs to someone else** (owner endpoints), or does not exist (the Admin lookup `GET /api/admin/addresses/{id}`) | Treat as gone |
 | `ADDRESS_LIMIT_REACHED` | 409 | Adding an address when the customer already has 20 | "You can save up to 20 addresses" |
 | `VALIDATION_FAILED` | 400 | Request failed validation — see above | Show per field from `details.fields[].rule` |
 | `MALFORMED_REQUEST` | 400 | Unparseable JSON or a wrongly typed query parameter — a client bug | Generic error; report the bug |
 | `NOT_FOUND` | 404 | No endpoint at the path, or a path id that cannot be parsed | Not-found screen |
 | `METHOD_NOT_ALLOWED` | 405 | The path exists, but not for this HTTP method | Generic error; report the bug |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | The body is not `application/json` | Generic error; report the bug |
-| `ACCESS_DENIED` | 403 | Signed in, but not allowed | "You don't have access" |
+| `ACCESS_DENIED` | 403 | Signed in, but not allowed — including a customer on `/api/manage/**`, or anyone but Admin on `/api/admin/**` | "You don't have access" |
 | `INTERNAL_ERROR` | 500 | Anything unexpected | Generic error |
 
 ### Answers that are the same on purpose

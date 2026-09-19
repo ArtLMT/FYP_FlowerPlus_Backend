@@ -1,9 +1,13 @@
 package com.lmt.fyp.flowerplus.security;
 
+import com.lmt.fyp.flowerplus.common.AuthProvider;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.UserRole;
+import com.lmt.fyp.flowerplus.module.user.entity.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,7 +18,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SecurityUserTest {
 
     private static SecurityUser userWith(UserRole role, UserAccountStatus status) {
-        return new SecurityUser("user@example.com", "hashed-password", role, status);
+        return new SecurityUser(UUID.randomUUID(), "user@example.com", "hashed-password", role, status);
+    }
+
+    @Test
+    @DisplayName("the principal carries the account's id, so auditing needs no query")
+    void principalCarriesTheAccountId() {
+        UUID id = UUID.randomUUID();
+        User user = User.builder()
+                .email("user@example.com")
+                .password("hashed-password")
+                .role(UserRole.CUSTOMER)
+                .status(UserAccountStatus.ACTIVE)
+                .provider(AuthProvider.LOCAL)
+                .build();
+        user.setId(id);
+
+        assertThat(SecurityUser.fromEntity(user).getId()).isEqualTo(id);
     }
 
     @Test

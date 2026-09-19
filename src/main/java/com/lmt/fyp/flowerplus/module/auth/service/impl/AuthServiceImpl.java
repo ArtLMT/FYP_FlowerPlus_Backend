@@ -4,7 +4,6 @@ import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.util.EmailNormalizer;
 import com.lmt.fyp.flowerplus.exception.ApiException;
-import com.lmt.fyp.flowerplus.exception.UnauthorizedException;
 import com.lmt.fyp.flowerplus.module.auth.entity.RefreshToken;
 import com.lmt.fyp.flowerplus.module.auth.event.EmailVerifiedEvent;
 import com.lmt.fyp.flowerplus.module.auth.service.AuthService;
@@ -83,8 +82,8 @@ public class AuthServiceImpl implements AuthService {
         );
 
         User user = userService.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new UnauthorizedException(
-                        ErrorCode.USER_NOT_FOUND, "User not found with email: " + normalizedEmail));
+                .orElseThrow(() -> new ApiException(
+                        ErrorCode.INVALID_CREDENTIALS, "Invalid email or password"));
 
         return new TokenPair(
                 jwtService.generateToken(SecurityUser.fromEntity(user)),
@@ -149,7 +148,7 @@ public class AuthServiceImpl implements AuthService {
         // is never returned and is swept as a tombstone; harmless.)
         User user = rotated.getUser();
         if (SecurityUser.isAuthBlocked(user.getStatus())) {
-            throw new UnauthorizedException(
+            throw new ApiException(
                     ErrorCode.REFRESH_TOKEN_INVALID, "Account is not permitted to refresh");
         }
 

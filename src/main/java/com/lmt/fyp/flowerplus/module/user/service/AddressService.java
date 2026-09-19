@@ -40,6 +40,15 @@ public class AddressService {
                         "Address not found with id: " + addressId));
     }
 
+    // Unscoped lookup for the Admin endpoint (BR-ADDR-13). Ownership is not the
+    // guard here — the /api/admin/** role check is — so any address resolves.
+    @Transactional(readOnly = true)
+    public Address getById(UUID addressId) {
+        return addressRepository.findById(addressId)
+                .orElseThrow(() -> new ApiException(ErrorCode.ADDRESS_NOT_FOUND,
+                        "Address not found with id: " + addressId));
+    }
+
     @Transactional
     public Address addAddress(User owner, String receiverName, String phone,
                               String address, boolean makeDefault) {

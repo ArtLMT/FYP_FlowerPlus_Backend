@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.lmt.fyp.flowerplus.common.AuthProvider;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
 import com.lmt.fyp.flowerplus.common.UserRole;
-import com.lmt.fyp.flowerplus.common.entity.TimestampEntity;
+import com.lmt.fyp.flowerplus.common.entity.AuditableEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,7 +15,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class User extends TimestampEntity {
+public class User extends AuditableEntity {
 
     @Column(nullable = false, unique = true, length = 255)
     private String username;
@@ -47,6 +47,37 @@ public class User extends TimestampEntity {
     public void activate() {
         if (status != UserAccountStatus.PENDING) {
             throw new IllegalStateException("Only a PENDING account can be activated, was " + status);
+        }
+        status = UserAccountStatus.ACTIVE;
+    }
+
+    /**
+     * Take over an unverified (PENDING) account as a newly created Staff member:
+     * activate it, make it STAFF, and replace its never-proven password with a
+     * fresh hash the Admin never sees. Only a PENDING account can be adopted —
+     * an ACTIVE, SUSPENDED or BANNED email already belongs to someone.
+     */
+    public void adoptAsStaff(String hashedPassword) {
+        if (status != UserAccountStatus.PENDING) {
+            throw new IllegalStateException("Only a PENDING account can be adopted, was " + status);
+        }
+        status = UserAccountStatus.ACTIVE;
+        role = UserRole.STAFF;
+        password = hashedPassword;
+    }
+
+    /** Deactivate a Staff account: ACTIVE → BANNED. Reversible via {@link #unban()}. */
+    public void ban() {
+        if (status != UserAccountStatus.ACTIVE) {
+            throw new IllegalStateException("Only an ACTIVE account can be banned, was " + status);
+        }
+        status = UserAccountStatus.BANNED;
+    }
+
+    /** Reactivate a Staff account: BANNED → ACTIVE. */
+    public void unban() {
+        if (status != UserAccountStatus.BANNED) {
+            throw new IllegalStateException("Only a BANNED account can be unbanned, was " + status);
         }
         status = UserAccountStatus.ACTIVE;
     }

@@ -71,13 +71,13 @@ class RegistrationTest extends AuthIntegrationSupport {
         mockMvc.perform(post("/api/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(verifyRequest(email, code))))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         // The FIRST password still works; the second never took effect.
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(loginRequest(email, firstPassword))))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -90,7 +90,7 @@ class RegistrationTest extends AuthIntegrationSupport {
     @DisplayName("a non-UUID path variable is a 404, not a 500")
     void badPathVariableIsNotFound() throws Exception {
         createUser("caller@example.com", PASSWORD, UserAccountStatus.ACTIVE);
-        String token = loginTokens("caller@example.com", PASSWORD).get("flowerplus_at").asText();
+        String token = loginTokens("caller@example.com", PASSWORD).access();
 
         mockMvc.perform(get("/api/users/not-a-uuid")
                         .header("Authorization", "Bearer " + token))

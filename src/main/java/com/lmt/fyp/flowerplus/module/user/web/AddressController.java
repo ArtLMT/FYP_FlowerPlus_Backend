@@ -21,9 +21,11 @@ import java.net.URI;
 import java.util.UUID;
 
 /**
- * No @PreAuthorize/@PostAuthorize by design — ownership is the scoped query in
- * AddressService, so somebody else's id yields 404 rather than a 403 that
- * confirms the row exists.
+ * The signed-in customer's own addresses. No @PreAuthorize/@PostAuthorize by
+ * design — ownership is the scoped query in AddressService, so somebody else's
+ * id yields 404 rather than a 403 that confirms the row exists. There is no
+ * read-one-by-id here: the list carries every address, and looking one up by id
+ * is the Admin's job (AdminAddressController, BR-ADDR-13).
  */
 @RestController
 @RequestMapping("/api/addresses")
@@ -41,12 +43,6 @@ public class AddressController {
     public PageResponse<AddressResponse> list(@AuthenticationPrincipal SecurityUser principal) {
         Page<Address> page = addressService.listFor(caller(principal));
         return PageResponse.from(page, AddressResponse::from);
-    }
-
-    @GetMapping("/{id}")
-    public AddressResponse getById(@AuthenticationPrincipal SecurityUser principal,
-                                   @PathVariable UUID id) {
-        return AddressResponse.from(addressService.getOwned(caller(principal), id));
     }
 
     @PostMapping

@@ -1,7 +1,7 @@
 package com.lmt.fyp.flowerplus.module.auth;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
+import com.lmt.fyp.flowerplus.common.UserRole;
 import com.lmt.fyp.flowerplus.module.user.entity.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,62 +13,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Integration tests for profile-read authorization (items 2, 3, 18): the
- * owner-or-ADMIN guard on GET /api/users/{id}, the /me shortcut, and the
- * unauthenticated case. The cross-user 403 is the one test that fails if
- * method security (@EnableMethodSecurity) is ever switched off.
+ * Profile-read authorization after lookup-by-id became Admin-only (accounts P2):
+ * a user reads themselves through GET /api/users/me, and looking up any account
+ * by id lives at GET /api/admin/users/{id}, guarded by the /api/admin/** rule
+ * and @PreAuthorize. The old GET /api/users/{id} is gone. The Staff 403 is the
+ * test that fails if method security (@EnableMethodSecurity) is ever switched
+ * off — the URL rule alone would still let an Admin through, but not prove the
+ * @PreAuthorize layer.
  */
 class UserAccessTest extends AuthIntegrationSupport {
 
     private static final String PASSWORD = "Password123!";
 
-    /** Create two ACTIVE users and return A's access token plus both users. */
-    private String accessTokenFor(String email) throws Exception {
-        createUser(email, PASSWORD, UserAccountStatus.ACTIVE);
-        JsonNode tokens = loginTokens(email, PASSWORD);
-        return tokens.get("flowerplus_at").asText();
-    }
-
-    @Test
-    @DisplayName("a user can read their own profile by id")
-    void ownerReadsOwnProfile() throws Exception {
-        User a = createUser("owner@example.com", PASSWORD, UserAccountStatus.ACTIVE);
-        String tokenA = loginTokens("owner@example.com", PASSWORD).get("flowerplus_at").asText();
-
-        mockMvc.perform(get("/api/users/" + a.getId())
-                        .header("Authorization", "Bearer " + tokenA))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(a.getId().toString()));
-    }
-
-    @Test
-    @DisplayName("a user cannot read another user's profile")
-    void crossUserReadIsForbidden() throws Exception {
-        String tokenA = accessTokenFor("a@example.com");
-        User b = createUser("b@example.com", PASSWORD, UserAccountStatus.ACTIVE);
-
-        mockMvc.perform(get("/api/users/" + b.getId())
-                        .header("Authorization", "Bearer " + tokenA))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"));
-    }
-
-    @Test
-    @DisplayName("an id with no user is USER_NOT_FOUND")
-    void unknownIdIsNotFound() throws Exception {
-        String tokenA = accessTokenFor("seeker@example.com");
-
-        mockMvc.perform(get("/api/users/" + UUID.randomUUID())
-                        .header("Authorization", "Bearer " + tokenA))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.errorCode").value("USER_NOT_FOUND"));
+    private String accessTokenFor(String email, UserRole role) throws Exception {
+        createUser(email, PASSWORD, UserAccountStatus.ACTIVE, role);
+        return loginTokens(email, PASSWORD).access();
     }
 
     @Test
     @DisplayName("/me returns the caller's own profile")
     void meReturnsSelf() throws Exception {
         User a = createUser("me@example.com", PASSWORD, UserAccountStatus.ACTIVE);
-        String tokenA = loginTokens("me@example.com", PASSWORD).get("flowerplus_at").asText();
+        String tokenA = loginTokens("me@example.com", PASSWORD).access();
 
         mockMvc.perform(get("/api/users/me")
                         .header("Authorization", "Bearer " + tokenA))
@@ -77,11 +43,58 @@ class UserAccessTest extends AuthIntegrationSupport {
     }
 
     @Test
+    @DisplayName("the old GET /api/users/{id} no longer exists")
+    void oldLookupPathIsGone() throws Exception {
+        String tokenA = accessTokenFor("seeker@example.com", UserRole.CUSTOMER);
+
+        mockMvc.perform(get("/api/users/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("an Admin can look up any account by id")
+    void adminReadsAnyUser() throws Exception {
+        String adminToken = accessTokenFor("admin@example.com", UserRole.ADMIN);
+        User target = createUser("target@example.com", PASSWORD, UserAccountStatus.ACTIVE);
+
+        mockMvc.perform(get("/api/admin/users/" + target.getId())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(target.getId().toString()))
+                .andExpect(jsonPath("$.email").value("target@example.com"));
+    }
+
+    @Test
+    @DisplayName("a Staff member cannot use the admin lookup")
+    void staffCannotUseAdminLookup() throws Exception {
+        String staffToken = accessTokenFor("staff@example.com", UserRole.STAFF);
+        User target = createUser("target@example.com", PASSWORD, UserAccountStatus.ACTIVE);
+
+        mockMvc.perform(get("/api/admin/users/" + target.getId())
+                        .header("Authorization", "Bearer " + staffToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    @DisplayName("an id with no user is USER_NOT_FOUND for the Admin")
+    void unknownIdIsNotFound() throws Exception {
+        String adminToken = accessTokenFor("admin@example.com", UserRole.ADMIN);
+
+        mockMvc.perform(get("/api/admin/users/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("USER_NOT_FOUND"));
+    }
+
+    @Test
     @DisplayName("no token is unauthenticated")
     void noTokenIsUnauthenticated() throws Exception {
         User a = createUser("anon@example.com", PASSWORD, UserAccountStatus.ACTIVE);
 
-        mockMvc.perform(get("/api/users/" + a.getId()))
+        mockMvc.perform(get("/api/admin/users/" + a.getId()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.timestamp").isString())

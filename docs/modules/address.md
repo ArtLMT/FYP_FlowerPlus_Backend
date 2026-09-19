@@ -2,7 +2,7 @@
 type: module
 module: address
 phase: 01a
-status: built-untested
+status: shipped
 tables:
   - address
 migration: V5
@@ -38,7 +38,8 @@ it, there is no second implementation and no test fake, so an interface would be
 
 ```java
 Page<Address> listFor(User owner);
-Address       getOwned(User owner, UUID addressId);
+Address       getOwned(User owner, UUID addressId);  // owner-scoped: 404 for another user's row
+Address       getById(UUID addressId);               // unscoped: the Admin lookup only
 Address       addAddress(User owner, String receiverName, String phone, String address, boolean makeDefault);
 Address       updateAddress(User owner, UUID addressId, String receiverName, String phone, String address, boolean makeDefault);
 Address       setDefault(User owner, UUID addressId);
@@ -47,21 +48,25 @@ void          deleteAddress(User owner, UUID addressId);
 
 ## Endpoints
 
-| Method | Path | Success |
-|---|---|---|
-| `GET` | `/api/addresses` | `200` `PageResponse<AddressResponse>`: always the first page of 20, default first then newest. No request parameters — `page`, `size` and `sort` are ignored |
-| `GET` | `/api/addresses/{id}` | `200` |
-| `POST` | `/api/addresses` | `201` + `Location`; `409 ADDRESS_LIMIT_REACHED` when the customer already has 20 |
-| `PUT` | `/api/addresses/{id}` | `200` |
-| `PUT` | `/api/addresses/{id}/default` | `200` |
-| `DELETE` | `/api/addresses/{id}` | `204` |
+| Method | Path | Who | Success |
+|---|---|---|---|
+| `GET` | `/api/addresses` | owner | `200` `PageResponse<AddressResponse>`: always the first page of 20, default first then newest. No request parameters — `page`, `size` and `sort` are ignored |
+| `POST` | `/api/addresses` | owner | `201` + `Location`; `409 ADDRESS_LIMIT_REACHED` when the customer already has 20 |
+| `PUT` | `/api/addresses/{id}` | owner | `200` |
+| `PUT` | `/api/addresses/{id}/default` | owner | `200` |
+| `DELETE` | `/api/addresses/{id}` | owner | `204` |
+| `GET` | `/api/admin/addresses/{id}` | Admin | `200` — look up any customer's address (BR-ADDR-13); `404 ADDRESS_NOT_FOUND` if none |
 
-`SecurityConfig` was not touched — `anyRequest().authenticated()` already covers all six.
+There is **no owner read-one-by-id**: the list carries every address (capped at 20), so a `GET
+/api/addresses/{id}` is `405` (the path exists for `PUT`/`DELETE`). Looking one address up by id is
+Admin-only, in `AdminAddressController` under `/api/admin/**` (accounts P2). The owner endpoints are
+covered by `anyRequest().authenticated()`; the admin endpoint sits behind the `/api/admin/**` URL
+rule plus `@PreAuthorize("hasRole('ADMIN')")`, so Staff get `403`.
 
 ## Business rules
 
 1. **Ownership is a query, not an annotation.** Everything goes through `findByIdAndUserId`.
-   Somebody else's id raises `AddressNotFoundException` → **404**, not 403. A 403 confirms the row
+   Somebody else's id is `ADDRESS_NOT_FOUND` → **404**, not 403. A 403 confirms the row
    exists. Same reasoning as the profile-read fix in `89affe4`.
 2. **The first address a user creates becomes their default**, asked for or not — so a user with
    addresses always has one selected at checkout.
@@ -93,15 +98,12 @@ Published: — Consumed: — Checkout will read the default address through `Add
 
 ## Tests
 
-`AddressCrudTest` — 14 tests, one per rule, plus validation, 401 and malformed-UUID 400.
+`AddressCrudTest` — 20 tests: one per rule above, plus validation, 401, malformed-UUID 404, the
+`405` on a single-address `GET`, and the Admin lookup (`/api/admin/addresses/{id}`: Admin 200,
+Staff 403, missing 404).
 
-> [!warning] Never executed
-> Blocked by a machine-level JDK failure: `Selector.open()` throws `Unable to establish loopback
-> connection` (`sun.nio.ch.UnixDomainSockets.connect0` → `Invalid argument: connect`), which kills
-> every `@SpringBootTest` context including the four pre-existing auth suites. Not caused by this
-> module. Every rule above is unverified.
-
-The two cross-user 404 tests are the ones to protect: if either becomes a 403, the API has started
-leaking the existence of other users' rows.
+The cross-user 404 tests are the ones to protect: `crossUserUpdateIsNotFound` and
+`crossUserDeleteIsNotFound`. If either becomes a 403, the API has started leaking the existence of
+other users' rows.
 
 Indexed in [[Modules]].

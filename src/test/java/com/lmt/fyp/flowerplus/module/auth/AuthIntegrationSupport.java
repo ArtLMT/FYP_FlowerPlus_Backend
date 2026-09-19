@@ -1,6 +1,5 @@
 package com.lmt.fyp.flowerplus.module.auth;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lmt.fyp.flowerplus.common.AuthProvider;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
@@ -103,11 +102,16 @@ abstract class AuthIntegrationSupport {
     /** Persist a user directly in a chosen status — the fast path when a test
      *  needs an existing account without walking the register/verify flow. */
     protected User createUser(String email, String rawPassword, UserAccountStatus status) {
+        return createUser(email, rawPassword, status, UserRole.CUSTOMER);
+    }
+
+    /** As above, with a chosen role — for Staff and Admin callers. */
+    protected User createUser(String email, String rawPassword, UserAccountStatus status, UserRole role) {
         User user = User.builder()
                 .username(email)
                 .email(email)
                 .password(passwordEncoder.encode(rawPassword))
-                .role(UserRole.CUSTOMER)
+                .role(role)
                 .status(status)
                 .provider(AuthProvider.LOCAL)
                 .build();
@@ -119,18 +123,24 @@ abstract class AuthIntegrationSupport {
         return saved;
     }
 
-    /** Log in and return the parsed response body (fields flowerplus_at, flowerplus_rt).
+    /** The two token cookie values from one response. */
+    protected record Tokens(String access, String refresh) {
+        static Tokens from(MvcResult result) {
+            return new Tokens(
+                    result.getResponse().getCookie("flowerplus_at").getValue(),
+                    result.getResponse().getCookie("flowerplus_rt").getValue());
+        }
+    }
+
+    /** Log in and return the tokens from the Set-Cookie headers.
      *  Expects success — use it only for accounts you know can authenticate. */
-    protected JsonNode loginTokens(String email, String password) throws Exception {
-        LoginRequest req = new LoginRequest();
-        req.setEmail(email);
-        req.setPassword(password);
+    protected Tokens loginTokens(String email, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(req)))
-                .andExpect(status().isOk())
+                        .content(json(loginRequest(email, password))))
+                .andExpect(status().isNoContent())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString());
+        return Tokens.from(result);
     }
 
     /** The OTP email delivery is async (AFTER_COMMIT), so poll briefly for the

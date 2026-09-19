@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -29,7 +31,7 @@ class JwtServiceTest {
         jwtService = new JwtService();
         ReflectionTestUtils.setField(jwtService, "secretKey", SECRET);
         ReflectionTestUtils.setField(jwtService, "jwtExpiration", 3_600_000L); // 1 hour
-        user = new SecurityUser("user@example.com", "pw", UserRole.CUSTOMER, UserAccountStatus.ACTIVE);
+        user = new SecurityUser(UUID.randomUUID(), "user@example.com", "pw", UserRole.CUSTOMER, UserAccountStatus.ACTIVE);
     }
 
     @Test
@@ -48,7 +50,7 @@ class JwtServiceTest {
         String token = jwtService.generateToken(user);
 
         UserDetails other =
-                new SecurityUser("someone.else@example.com", "pw", UserRole.CUSTOMER, UserAccountStatus.ACTIVE);
+                new SecurityUser(UUID.randomUUID(), "someone.else@example.com", "pw", UserRole.CUSTOMER, UserAccountStatus.ACTIVE);
 
         assertThat(jwtService.isTokenValid(token, other)).isFalse();
     }

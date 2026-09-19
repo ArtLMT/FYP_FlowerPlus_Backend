@@ -1,6 +1,5 @@
 package com.lmt.fyp.flowerplus.module.auth;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lmt.fyp.flowerplus.common.AuthProvider;
 import com.lmt.fyp.flowerplus.common.UserAccountStatus;
@@ -34,13 +33,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -177,12 +176,12 @@ class AuthRegressionTest {
         String validOtpCode = awaitLatestOtpCode(2);
         VerifyOtpRequest validVerifyRequest = makeVerifyOtpRequest(email, validOtpCode);
 
+        // Tokens only in the HttpOnly cookies: the body stays empty.
         mockMvc.perform(post("/api/auth/verify-email")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(validVerifyRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.flowerplus_at").isNotEmpty())
-                .andExpect(jsonPath("$.flowerplus_rt").isNotEmpty())
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""))
                 .andExpect(cookie().exists("flowerplus_at"))
                 .andExpect(cookie().exists("flowerplus_rt"));
 
@@ -190,77 +189,66 @@ class AuthRegressionTest {
         assertThat(verifiedUser.getStatus()).isEqualTo(UserAccountStatus.ACTIVE);
 
         // ------------------------------------------------------------------ //
-        // 6. Login -> 200, JWT returned & cookies set
+        // 6. Login -> 204, empty body, tokens only in the cookies
         // ------------------------------------------------------------------ //
         LoginRequest loginRequest = makeLoginRequest(email, password);
 
         MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.flowerplus_at").isNotEmpty())
-                .andExpect(jsonPath("$.flowerplus_rt").isNotEmpty())
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""))
                 .andExpect(cookie().exists("flowerplus_at"))
                 .andExpect(cookie().exists("flowerplus_rt"))
                 .andReturn();
 
-        String responseJson = loginResult.getResponse().getContentAsString();
-        JsonNode loginNode = objectMapper.readTree(responseJson);
-        String accessToken = loginNode.get("flowerplus_at").asText();
-        String refreshToken = loginNode.get("flowerplus_rt").asText();
+        String accessToken = loginResult.getResponse().getCookie("flowerplus_at").getValue();
+        String refreshToken = loginResult.getResponse().getCookie("flowerplus_rt").getValue();
 
         // ------------------------------------------------------------------ //
-        // 7. GET /api/users/{id} with JWT (200) and without (401 ErrorResponse)
+        // 7. GET /api/users/me with JWT (200) and without (401 ErrorResponse)
         // ------------------------------------------------------------------ //
         UUID userId = verifiedUser.getId();
 
         // With JWT -> 200
-        mockMvc.perform(get("/api/users/" + userId)
+        mockMvc.perform(get("/api/users/me")
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(userId.toString()))
                 .andExpect(jsonPath("$.email").value(email));
 
         // Without JWT -> 401 ErrorResponse shape
-        mockMvc.perform(get("/api/users/" + userId))
+        mockMvc.perform(get("/api/users/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.error").value("Unauthorized"))
                 .andExpect(jsonPath("$.message").value("Authentication is required to access this resource"))
-                .andExpect(jsonPath("$.path").value("/api/users/" + userId));
+                .andExpect(jsonPath("$.path").value("/api/users/me"));
 
         // ------------------------------------------------------------------ //
-        // 8. Refresh via cookie AND via body (both 200)
+        // 8. Refresh via cookie, then again with the rotated cookie (both 204)
         // ------------------------------------------------------------------ //
-        // Refresh via cookie -> 200
-        MvcResult refreshCookieResult = mockMvc.perform(post("/api/auth/refresh")
+        MvcResult firstRefreshResult = mockMvc.perform(post("/api/auth/refresh")
                         .cookie(new Cookie("flowerplus_rt", refreshToken)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.flowerplus_at").isNotEmpty())
-                .andExpect(jsonPath("$.flowerplus_rt").isNotEmpty())
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""))
                 .andExpect(cookie().exists("flowerplus_at"))
                 .andExpect(cookie().exists("flowerplus_rt"))
                 .andReturn();
 
-        String refreshCookieJson = refreshCookieResult.getResponse().getContentAsString();
-        String newRefreshTokenFromCookie = objectMapper.readTree(refreshCookieJson).get("flowerplus_rt").asText();
+        String rotatedRefreshToken = firstRefreshResult.getResponse().getCookie("flowerplus_rt").getValue();
 
-        // Refresh via body -> 200
-        String refreshBodyJson = objectMapper.writeValueAsString(Map.of("flowerplus_rt", newRefreshTokenFromCookie));
-        MvcResult refreshBodyResult = mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(refreshBodyJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.flowerplus_at").isNotEmpty())
-                .andExpect(jsonPath("$.flowerplus_rt").isNotEmpty())
+        MvcResult secondRefreshResult = mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("flowerplus_rt", rotatedRefreshToken)))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""))
                 .andExpect(cookie().exists("flowerplus_at"))
                 .andExpect(cookie().exists("flowerplus_rt"))
                 .andReturn();
 
-        String activeRefreshToken = objectMapper.readTree(refreshBodyResult.getResponse().getContentAsString())
-                .get("flowerplus_rt").asText();
+        String activeRefreshToken = secondRefreshResult.getResponse().getCookie("flowerplus_rt").getValue();
 
         // ------------------------------------------------------------------ //
         // 9. Logout (204, cookies cleared)
@@ -275,21 +263,20 @@ class AuthRegressionTest {
         // 10. Reuse the refresh token (401)
         // ------------------------------------------------------------------ //
         mockMvc.perform(post("/api/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("flowerplus_rt", activeRefreshToken))))
+                        .cookie(new Cookie("flowerplus_rt", activeRefreshToken)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("REFRESH_TOKEN_INVALID"));
 
         // ------------------------------------------------------------------ //
         // 11. Login as status variants: SUSPENDED, BANNED, PENDING
         // ------------------------------------------------------------------ //
-        // SUSPENDED -> succeeds (200)
+        // SUSPENDED -> succeeds (204, access cookie set)
         User suspendedUser = createUser("suspended@example.com", password, UserAccountStatus.SUSPENDED);
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(makeLoginRequest(suspendedUser.getEmail(), password))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.flowerplus_at").isNotEmpty());
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().exists("flowerplus_at"));
 
         // BANNED -> 403 (ACCOUNT_BLOCKED via LockedException)
         User bannedUser = createUser("banned@example.com", password, UserAccountStatus.BANNED);
