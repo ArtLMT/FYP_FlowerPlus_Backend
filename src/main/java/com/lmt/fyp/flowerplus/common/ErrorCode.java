@@ -40,6 +40,10 @@ public enum ErrorCode {
     ADDRESS_NOT_FOUND(HttpStatus.NOT_FOUND, "address.notFound"),
     ADDRESS_LIMIT_REACHED(HttpStatus.CONFLICT, "address.limitReached"),
 
+    /* ===================== MATERIAL ===================== */
+    MATERIAL_NOT_FOUND(HttpStatus.NOT_FOUND, "material.notFound"),
+    MATERIAL_NAME_EXISTS(HttpStatus.CONFLICT, "material.nameExists"),
+
     /* ===================== VALIDATION ===================== */
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "validation.failed"),
 

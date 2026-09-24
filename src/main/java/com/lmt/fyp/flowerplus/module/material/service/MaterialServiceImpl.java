@@ -4,6 +4,7 @@ import com.lmt.fyp.flowerplus.module.material.dto.CreateMaterialRequest;
 import com.lmt.fyp.flowerplus.module.material.dto.MaterialResponse;
 import com.lmt.fyp.flowerplus.module.material.dto.UpdateMaterialRequest;
 import com.lmt.fyp.flowerplus.module.material.entity.Material;
+import com.lmt.fyp.flowerplus.common.util.StringNormalizer;
 import com.lmt.fyp.flowerplus.module.material.entity.MaterialStatus;
 import com.lmt.fyp.flowerplus.module.material.entity.MaterialType;
 import com.lmt.fyp.flowerplus.common.ErrorCode;
@@ -28,17 +29,18 @@ public class MaterialServiceImpl implements MaterialService {
     @Override
     @Transactional
     public MaterialResponse createMaterial(CreateMaterialRequest request) {
-        if (materialRepository.existsByNameIgnoreCaseAndTrimmed(request.name())) {
+        String normalizedName = StringNormalizer.strip(request.name());
+        if (materialRepository.existsByNormalizedNameIgnoreCase(normalizedName)) {
             throw new ApiException(ErrorCode.MATERIAL_NAME_EXISTS);
         }
 
         Material material = new Material(
-                request.name(),
+                normalizedName,
                 request.type(),
                 request.unitOfMeasure(),
                 request.sellingPrice()
         );
-        material = materialRepository.save(material);
+        material = materialRepository.saveAndFlush(material);
         return MaterialResponse.from(material);
     }
 
@@ -48,12 +50,13 @@ public class MaterialServiceImpl implements MaterialService {
         Material material = materialRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.MATERIAL_NOT_FOUND));
 
-        if (materialRepository.existsByNameIgnoreCaseAndTrimmedAndIdNot(request.name(), id)) {
+        String normalizedName = StringNormalizer.strip(request.name());
+        if (materialRepository.existsByNormalizedNameIgnoreCaseAndIdNot(normalizedName, id)) {
             throw new ApiException(ErrorCode.MATERIAL_NAME_EXISTS);
         }
 
-        material.update(request.name(), request.type(), request.unitOfMeasure(), request.sellingPrice());
-        material = materialRepository.save(material);
+        material.update(normalizedName, request.type(), request.unitOfMeasure(), request.sellingPrice());
+        material = materialRepository.saveAndFlush(material);
         return MaterialResponse.from(material);
     }
 

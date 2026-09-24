@@ -1,6 +1,7 @@
 package com.lmt.fyp.flowerplus.module.material.entity;
 
 import com.lmt.fyp.flowerplus.common.entity.AuditableEntity;
+import com.lmt.fyp.flowerplus.common.util.StringNormalizer;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -39,7 +40,7 @@ public class Material extends AuditableEntity {
     private MaterialStatus status;
 
     public Material(String name, MaterialType type, UnitOfMeasure unitOfMeasure, BigDecimal sellingPrice) {
-        this.name = name.trim();
+        this.name = StringNormalizer.strip(name);
         this.type = type;
         this.unitOfMeasure = unitOfMeasure;
         this.sellingPrice = sellingPrice;
@@ -47,7 +48,7 @@ public class Material extends AuditableEntity {
     }
 
     public void update(String name, MaterialType type, UnitOfMeasure unitOfMeasure, BigDecimal sellingPrice) {
-        this.name = name.trim();
+        this.name = StringNormalizer.strip(name);
         this.type = type;
         this.unitOfMeasure = unitOfMeasure;
         this.sellingPrice = sellingPrice;

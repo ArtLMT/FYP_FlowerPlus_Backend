@@ -12,9 +12,9 @@ import java.util.UUID;
 @Repository
 public interface MaterialRepository extends JpaRepository<Material, UUID>, JpaSpecificationExecutor<Material> {
 
-    @Query("SELECT COUNT(m) > 0 FROM Material m WHERE LOWER(TRIM(m.name)) = LOWER(TRIM(:name))")
-    boolean existsByNameIgnoreCaseAndTrimmed(@Param("name") String name);
+    @Query("SELECT COUNT(m) > 0 FROM Material m WHERE LOWER(m.name) = LOWER(:name)")
+    boolean existsByNormalizedNameIgnoreCase(@Param("name") String name);
 
-    @Query("SELECT COUNT(m) > 0 FROM Material m WHERE LOWER(TRIM(m.name)) = LOWER(TRIM(:name)) AND m.id != :id")
-    boolean existsByNameIgnoreCaseAndTrimmedAndIdNot(@Param("name") String name, @Param("id") UUID id);
+    @Query("SELECT COUNT(m) > 0 FROM Material m WHERE LOWER(m.name) = LOWER(:name) AND m.id != :id")
+    boolean existsByNormalizedNameIgnoreCaseAndIdNot(@Param("name") String name, @Param("id") UUID id);
 }
