@@ -9,7 +9,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -275,15 +274,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex, HttpServletRequest request) {
-        if (ex.getClass().getName().contains("PropertyReferenceException") ||
-                (ex instanceof InvalidDataAccessApiUsageException && ex.getMessage() != null && ex.getMessage().contains("Sort expression"))) {
-            log.warn("[MALFORMED_REQUEST] invalid sort property — path={}", request.getRequestURI());
-            return respond(ErrorResponse.of(
-                    ErrorCode.MALFORMED_REQUEST,
-                    "Invalid sorting property.",
-                    request.getRequestURI()));
-        }
-
         log.error("[INTERNAL_ERROR] Unhandled exception — path={}", request.getRequestURI(), ex);
 
         return respond(ErrorResponse.of(

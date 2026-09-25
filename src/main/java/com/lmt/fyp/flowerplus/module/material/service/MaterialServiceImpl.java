@@ -16,8 +16,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -95,9 +95,10 @@ public class MaterialServiceImpl implements MaterialService {
     public Page<MaterialResponse> listMaterials(Pageable pageable, String search, MaterialType type, MaterialStatus status) {
         Specification<Material> spec = (root, query, cb) -> cb.conjunction();
 
-        if (StringUtils.hasText(search)) {
-            String likePattern = "%" + search.trim().toLowerCase() + "%";
-            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("name")), likePattern));
+        String normalizedSearch = StringNormalizer.strip(search);
+        if (normalizedSearch != null && !normalizedSearch.isEmpty()) {
+            String likePattern = "%" + escapeLike(normalizedSearch.toLowerCase(Locale.ROOT)) + "%";
+            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("name")), likePattern, '\\'));
         }
         if (type != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("type"), type));
@@ -107,5 +108,11 @@ public class MaterialServiceImpl implements MaterialService {
         }
 
         return materialRepository.findAll(spec, pageable).map(MaterialResponse::from);
+    }
+
+    private static String escapeLike(String value) {
+        return value.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 }

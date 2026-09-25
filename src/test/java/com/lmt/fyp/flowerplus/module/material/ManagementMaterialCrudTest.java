@@ -211,6 +211,47 @@ class ManagementMaterialCrudTest extends MaterialIntegrationSupport {
     }
 
     @Test
+    @DisplayName("T-MAT-07: Name search treats SQL wildcard characters literally")
+    void listMaterialsSearchesWildcardCharactersLiterally() throws Exception {
+        String token = tokenFor(STAFF_EMAIL, UserRole.STAFF);
+        createMaterialViaApi(token, "50% Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, 15000);
+        createMaterialViaApi(token, "Rose_Stem", MaterialType.FLOWER, UnitOfMeasure.STEM, 16000);
+        createMaterialViaApi(token, "Red Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, 17000);
+
+        mockMvc.perform(get("/api/manage/materials")
+                        .param("search", "%")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("50% Rose"));
+
+        mockMvc.perform(get("/api/manage/materials")
+                        .param("search", "_")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Rose_Stem"));
+    }
+
+    @Test
+    @DisplayName("T-MAT-07: Approved sort options select fixed fields and directions")
+    void listMaterialsUsesApprovedSortOptions() throws Exception {
+        String token = tokenFor(STAFF_EMAIL, UserRole.STAFF);
+        createMaterialViaApi(token, "White Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, 30000);
+        createMaterialViaApi(token, "Red Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, 10000);
+
+        mockMvc.perform(get("/api/manage/materials?sort=NAME_DESC")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("White Rose"));
+
+        mockMvc.perform(get("/api/manage/materials?sort=PRICE_ASC")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("Red Rose"));
+    }
+
+    @Test
     @DisplayName("T-MAT-04: Invalid page size > 100 returns validation failure")
     void listMaterialsPageSizeExceeded() throws Exception {
         String token = tokenFor(STAFF_EMAIL, UserRole.STAFF);
@@ -222,13 +263,49 @@ class ManagementMaterialCrudTest extends MaterialIntegrationSupport {
     }
 
     @Test
-    @DisplayName("Exception handler: Invalid sort property is caught and returns malformed request")
-    void listMaterialsInvalidSort() throws Exception {
+    @DisplayName("T-MAT-07: Negative pages and non-positive sizes return validation failure")
+    void listMaterialsRejectsInvalidPageBounds() throws Exception {
         String token = tokenFor(STAFF_EMAIL, UserRole.STAFF);
+
+        mockMvc.perform(get("/api/manage/materials?page=-1")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+
+        mockMvc.perform(get("/api/manage/materials?size=0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    @DisplayName("T-MAT-07: Staff and Admin can list materials; Customer and Guest cannot")
+    void listMaterialsRequiresStaffRole() throws Exception {
+        String adminToken = tokenFor(ADMIN_EMAIL, UserRole.ADMIN);
+        String customerToken = tokenFor(CUSTOMER_EMAIL, UserRole.CUSTOMER);
+
+        mockMvc.perform(get("/api/manage/materials")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/manage/materials")
+                        .header("Authorization", "Bearer " + customerToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/manage/materials"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("T-MAT-07: Unsupported sort uses the default name ascending order")
+    void listMaterialsUnsupportedSortUsesDefault() throws Exception {
+        String token = tokenFor(STAFF_EMAIL, UserRole.STAFF);
+        createMaterialViaApi(token, "White Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, 15000);
+        createMaterialViaApi(token, "Red Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, 15000);
 
         mockMvc.perform(get("/api/manage/materials?sort=string")
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("Red Rose"));
     }
 }
