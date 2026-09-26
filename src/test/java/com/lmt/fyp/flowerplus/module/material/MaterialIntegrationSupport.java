@@ -8,6 +8,7 @@ import com.lmt.fyp.flowerplus.common.UserRole;
 import com.lmt.fyp.flowerplus.fake.TestFakesConfig;
 import com.lmt.fyp.flowerplus.module.auth.repository.RefreshTokenRepository;
 import com.lmt.fyp.flowerplus.module.material.dto.CreateMaterialRequest;
+import com.lmt.fyp.flowerplus.module.material.dto.UpdateMaterialRequest;
 import com.lmt.fyp.flowerplus.module.material.entity.MaterialType;
 import com.lmt.fyp.flowerplus.module.material.entity.UnitOfMeasure;
 import com.lmt.fyp.flowerplus.module.material.repository.MaterialRepository;
@@ -20,8 +21,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -51,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "ADMIN_PASSWORD=AdminPassword123"
 })
 @Import(TestFakesConfig.class)
+/* Provides shared application setup, authentication, cleanup, and request helpers for Material tests. */
 public abstract class MaterialIntegrationSupport {
 
     protected static final String PASSWORD = "Password123!";
@@ -123,13 +125,22 @@ public abstract class MaterialIntegrationSupport {
     }
 
     protected UUID createMaterialViaApi(String token, String name, MaterialType type, UnitOfMeasure uom, int price) throws Exception {
+        return UUID.fromString(createMaterialResponseViaApi(token, name, type, uom, price).get("id").asText());
+    }
+
+    protected JsonNode createMaterialResponseViaApi(
+            String token, String name, MaterialType type, UnitOfMeasure uom, int price) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/manage/materials")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(request(name, type, uom, price))))
                 .andExpect(status().isCreated())
                 .andReturn();
-        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        return UUID.fromString(body.get("id").asText());
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    protected UpdateMaterialRequest updateRequest(
+            String name, MaterialType type, UnitOfMeasure uom, int price, long version) {
+        return new UpdateMaterialRequest(name, type, uom, BigDecimal.valueOf(price), version);
     }
 }
