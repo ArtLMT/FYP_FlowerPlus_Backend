@@ -13,8 +13,8 @@ import java.util.UUID;
 public interface MaterialService {
     MaterialResponse createMaterial(CreateMaterialRequest request);
     MaterialResponse updateMaterial(UUID id, UpdateMaterialRequest request);
-    MaterialResponse deactivateMaterial(UUID id);
-    MaterialResponse reactivateMaterial(UUID id);
+    MaterialResponse deactivateMaterial(UUID id, Long version);
+    MaterialResponse reactivateMaterial(UUID id, Long version);
     MaterialResponse getMaterial(UUID id);
     Page<MaterialResponse> listMaterials(Pageable pageable, String search, MaterialType type, MaterialStatus status);
 }

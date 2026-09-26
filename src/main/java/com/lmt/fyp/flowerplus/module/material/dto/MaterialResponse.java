@@ -19,7 +19,8 @@ public record MaterialResponse(
         Instant createdAt,
         Instant updatedAt,
         UUID createdBy,
-        UUID updatedBy
+        UUID updatedBy,
+        Long version
 ) {
     public static MaterialResponse from(Material material) {
         return new MaterialResponse(
@@ -32,7 +33,8 @@ public record MaterialResponse(
                 material.getCreatedAt(),
                 material.getUpdatedAt(),
                 material.getCreatedBy(),
-                material.getUpdatedBy()
+                material.getUpdatedBy(),
+                material.getVersion()
         );
     }
 }

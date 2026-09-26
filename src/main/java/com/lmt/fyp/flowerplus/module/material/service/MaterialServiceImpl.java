@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -49,6 +50,7 @@ public class MaterialServiceImpl implements MaterialService {
     public MaterialResponse updateMaterial(UUID id, UpdateMaterialRequest request) {
         Material material = materialRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.MATERIAL_NOT_FOUND));
+        requireCurrentVersion(material, request.version());
 
         String normalizedName = StringNormalizer.strip(request.name());
         if (materialRepository.existsByNormalizedNameIgnoreCaseAndIdNot(normalizedName, id)) {
@@ -62,23 +64,25 @@ public class MaterialServiceImpl implements MaterialService {
 
     @Override
     @Transactional
-    public MaterialResponse deactivateMaterial(UUID id) {
+    public MaterialResponse deactivateMaterial(UUID id, Long version) {
         Material material = materialRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.MATERIAL_NOT_FOUND));
+        requireCurrentVersion(material, version);
 
         material.deactivate();
-        material = materialRepository.save(material);
+        material = materialRepository.saveAndFlush(material);
         return MaterialResponse.from(material);
     }
 
     @Override
     @Transactional
-    public MaterialResponse reactivateMaterial(UUID id) {
+    public MaterialResponse reactivateMaterial(UUID id, Long version) {
         Material material = materialRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.MATERIAL_NOT_FOUND));
+        requireCurrentVersion(material, version);
 
         material.reactivate();
-        material = materialRepository.save(material);
+        material = materialRepository.saveAndFlush(material);
         return MaterialResponse.from(material);
     }
 
@@ -114,5 +118,13 @@ public class MaterialServiceImpl implements MaterialService {
         return value.replace("\\", "\\\\")
                 .replace("%", "\\%")
                 .replace("_", "\\_");
+    }
+
+    /* check if the requested version is correct and match the database's material
+    if they don't match mean there's a change happened BEFORE that request, prevent this request to override data */
+    private static void requireCurrentVersion(Material material, Long requestedVersion) {
+        if (!Objects.equals(material.getVersion(), requestedVersion)) {
+            throw new ApiException(ErrorCode.CONCURRENT_MODIFICATION);
+        }
     }
 }

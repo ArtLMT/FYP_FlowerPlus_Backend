@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -38,6 +39,10 @@ public class Material extends AuditableEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private MaterialStatus status;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     public Material(String name, MaterialType type, UnitOfMeasure unitOfMeasure, BigDecimal sellingPrice) {
         this.name = StringNormalizer.strip(name);

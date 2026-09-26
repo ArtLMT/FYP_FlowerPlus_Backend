@@ -5,6 +5,7 @@ import com.lmt.fyp.flowerplus.common.dto.PageResponse;
 import com.lmt.fyp.flowerplus.exception.ApiException;
 import com.lmt.fyp.flowerplus.module.material.dto.CreateMaterialRequest;
 import com.lmt.fyp.flowerplus.module.material.dto.MaterialResponse;
+import com.lmt.fyp.flowerplus.module.material.dto.MaterialVersionRequest;
 import com.lmt.fyp.flowerplus.module.material.dto.UpdateMaterialRequest;
 import com.lmt.fyp.flowerplus.module.material.entity.MaterialStatus;
 import com.lmt.fyp.flowerplus.module.material.entity.MaterialType;
@@ -48,13 +49,17 @@ public class ManagementMaterialController {
     }
 
     @PutMapping("/{id}/deactivate")
-    public MaterialResponse deactivateMaterial(@PathVariable UUID id) {
-        return materialService.deactivateMaterial(id);
+    public MaterialResponse deactivateMaterial(
+            @PathVariable UUID id,
+            @Valid @RequestBody MaterialVersionRequest request) {
+        return materialService.deactivateMaterial(id, request.version());
     }
 
     @PutMapping("/{id}/reactivate")
-    public MaterialResponse reactivateMaterial(@PathVariable UUID id) {
-        return materialService.reactivateMaterial(id);
+    public MaterialResponse reactivateMaterial(
+            @PathVariable UUID id,
+            @Valid @RequestBody MaterialVersionRequest request) {
+        return materialService.reactivateMaterial(id, request.version());
     }
 
     @GetMapping("/{id}")

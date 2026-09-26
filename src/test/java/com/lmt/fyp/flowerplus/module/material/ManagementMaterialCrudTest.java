@@ -89,7 +89,7 @@ class ManagementMaterialCrudTest extends MaterialIntegrationSupport {
 
         UUID id = createMaterialViaApi(token, "White Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, 15000);
         UpdateMaterialRequest fractionalUpdate = new UpdateMaterialRequest(
-                "White Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, new BigDecimal("15000.5"));
+                "White Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, new BigDecimal("15000.5"), 0L);
 
         mockMvc.perform(put("/api/manage/materials/" + id)
                         .header("Authorization", "Bearer " + token)
@@ -152,7 +152,7 @@ class ManagementMaterialCrudTest extends MaterialIntegrationSupport {
         UUID id = createMaterialViaApi(token, "Red Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, 15000);
 
         UpdateMaterialRequest updateRequest = new UpdateMaterialRequest(
-                "White Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, BigDecimal.valueOf(16000)
+                "White Rose", MaterialType.FLOWER, UnitOfMeasure.STEM, BigDecimal.valueOf(16000), 0L
         );
 
         mockMvc.perform(put("/api/manage/materials/" + id)
@@ -172,15 +172,21 @@ class ManagementMaterialCrudTest extends MaterialIntegrationSupport {
 
         // Deactivate
         mockMvc.perform(put("/api/manage/materials/" + id + "/deactivate")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value(MaterialStatus.DEACTIVATED.name()));
+                .andExpect(jsonPath("$.status").value(MaterialStatus.DEACTIVATED.name()))
+                .andExpect(jsonPath("$.version").value(1));
 
         // Reactivate
         mockMvc.perform(put("/api/manage/materials/" + id + "/reactivate")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":1}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value(MaterialStatus.ACTIVE.name()));
+                .andExpect(jsonPath("$.status").value(MaterialStatus.ACTIVE.name()))
+                .andExpect(jsonPath("$.version").value(2));
     }
 
     @Test

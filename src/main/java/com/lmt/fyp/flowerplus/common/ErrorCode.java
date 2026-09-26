@@ -44,6 +44,9 @@ public enum ErrorCode {
     MATERIAL_NOT_FOUND(HttpStatus.NOT_FOUND, "material.notFound"),
     MATERIAL_NAME_EXISTS(HttpStatus.CONFLICT, "material.nameExists"),
 
+    /* ===================== CONCURRENCY ===================== */
+    CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "concurrency.modification"),
+
     /* ===================== VALIDATION ===================== */
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "validation.failed"),
 

@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -87,6 +88,16 @@ public class GlobalExceptionHandler {
         log.error("[INTERNAL_ERROR] Unhandled database constraint violation — path={}", request.getRequestURI(), ex);
         return respond(ErrorResponse.of(
                 ErrorCode.INTERNAL_ERROR, "An unexpected error occurred", request.getRequestURI()));
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(
+            OptimisticLockingFailureException ex, HttpServletRequest request) {
+        log.warn("[CONCURRENT_MODIFICATION] stale write — path={}", request.getRequestURI());
+        return respond(ErrorResponse.of(
+                ErrorCode.CONCURRENT_MODIFICATION,
+                "The resource was changed by another request",
+                request.getRequestURI()));
     }
 
     // ------------------------------------------------------------------ //
