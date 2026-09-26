@@ -100,6 +100,9 @@ On a protected path, a request without a token is `401 UNAUTHENTICATED` before a
 | `EMAIL_ALREADY_EXISTS` | 409 | Register with an email that already has an account, or an Admin creating a Staff account (`POST /api/admin/staff`) on an email owned by an ACTIVE/SUSPENDED/BANNED account | Offer login or password reset |
 | `ADDRESS_NOT_FOUND` | 404 | An address that does not exist **or belongs to someone else** (owner endpoints), or does not exist (the Admin lookup `GET /api/admin/addresses/{id}`) | Treat as gone |
 | `ADDRESS_LIMIT_REACHED` | 409 | Adding an address when the customer already has 20 | "You can save up to 20 addresses" |
+| `MATERIAL_NOT_FOUND` | 404 | A material id that does not exist on `/api/manage/materials/{id}` management endpoints | "Material not found" |
+| `MATERIAL_NAME_EXISTS` | 409 | Creating or editing a material with a name that already exists (compared case-insensitively after trimming) | "A material with this name already exists" |
+| `CONCURRENT_MODIFICATION` | 409 | A person submits an update, state transition or deletion using a stale resource version (ADR 0006) | Reload the resource, show its newer state, then let the user decide whether to apply the change again |
 | `VALIDATION_FAILED` | 400 | Request failed validation — see above | Show per field from `details.fields[].rule` |
 | `MALFORMED_REQUEST` | 400 | Unparseable JSON or a wrongly typed query parameter — a client bug | Generic error; report the bug |
 | `NOT_FOUND` | 404 | No endpoint at the path, or a path id that cannot be parsed | Not-found screen |

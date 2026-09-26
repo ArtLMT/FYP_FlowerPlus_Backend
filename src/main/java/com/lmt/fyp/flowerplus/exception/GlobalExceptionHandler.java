@@ -7,6 +7,9 @@ import com.lmt.fyp.flowerplus.module.auth.exception.OtpDailyLimitReachedExceptio
 import com.lmt.fyp.flowerplus.module.auth.exception.OtpThrottledException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -70,6 +73,34 @@ public class GlobalExceptionHandler {
     }
 
     // ------------------------------------------------------------------ //
+    //  1c. Database constraints that represent a documented business error
+    // ------------------------------------------------------------------ //
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+        if (hasConstraint(ex, "idx_material_unique_name")) {
+            log.warn("[MATERIAL_NAME_EXISTS] unique material name — path={}", request.getRequestURI());
+            return respond(ErrorResponse.of(
+                    ErrorCode.MATERIAL_NAME_EXISTS, "Material name already exists", request.getRequestURI()));
+        }
+
+        log.error("[INTERNAL_ERROR] Unhandled database constraint violation — path={}", request.getRequestURI(), ex);
+        return respond(ErrorResponse.of(
+                ErrorCode.INTERNAL_ERROR, "An unexpected error occurred", request.getRequestURI()));
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(
+            OptimisticLockingFailureException ex, HttpServletRequest request) {
+        log.warn("[CONCURRENT_MODIFICATION] stale write — path={}", request.getRequestURI());
+        return respond(ErrorResponse.of(
+                ErrorCode.CONCURRENT_MODIFICATION,
+                "The resource was changed by another request",
+                request.getRequestURI()));
+    }
+
+    // ------------------------------------------------------------------ //
     //  2. Bean Validation Failures (@Valid / @Validated)
     // ------------------------------------------------------------------ //
 
@@ -129,6 +160,18 @@ public class GlobalExceptionHandler {
         return respond(ErrorResponse.of(
                 ErrorCode.MALFORMED_REQUEST,
                 "Request body is missing or malformed",
+                request.getRequestURI()));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+            IllegalArgumentException ex, HttpServletRequest request) {
+        log.warn("[MALFORMED_REQUEST] invalid argument '{}' — path={}",
+                ex.getMessage(), request.getRequestURI());
+
+        return respond(ErrorResponse.of(
+                ErrorCode.MALFORMED_REQUEST,
+                "Invalid argument: " + ex.getMessage(),
                 request.getRequestURI()));
     }
 
@@ -254,5 +297,17 @@ public class GlobalExceptionHandler {
 
     private static ResponseEntity<ErrorResponse> respond(ErrorResponse body, HttpHeaders headers) {
         return ResponseEntity.status(body.status()).headers(headers).body(body);
+    }
+
+    private static boolean hasConstraint(Throwable throwable, String expectedConstraint) {
+        Throwable cause = throwable;
+        while (cause != null) {
+            if (cause instanceof ConstraintViolationException constraintViolation
+                    && expectedConstraint.equals(constraintViolation.getConstraintName())) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 }
