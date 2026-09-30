@@ -44,6 +44,10 @@ public enum ErrorCode {
     MATERIAL_NOT_FOUND(HttpStatus.NOT_FOUND, "material.notFound"),
     MATERIAL_NAME_EXISTS(HttpStatus.CONFLICT, "material.nameExists"),
 
+    /* ===================== PRODUCT ===================== */
+    CATEGORY_NAME_EXISTS(HttpStatus.CONFLICT, "category.nameExists"),
+    PRODUCT_CATEGORY_IN_USE(HttpStatus.CONFLICT, "product.categoryInUse"),
+
     /* ===================== CONCURRENCY ===================== */
     CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "concurrency.modification"),
 

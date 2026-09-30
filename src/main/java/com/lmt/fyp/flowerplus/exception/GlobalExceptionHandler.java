@@ -44,7 +44,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleApiException(ApiException ex, HttpServletRequest request) {
         log.warn("[{}] {} — path={}", ex.getCode().name(), ex.getMessage(), request.getRequestURI());
 
-        return respond(ErrorResponse.of(ex.getCode(), ex.getMessage(), request.getRequestURI()));
+        return respond(ErrorResponse.of(ex.getCode(), ex.getMessage(), request.getRequestURI(), ex.getDetails()));
     }
 
     // ------------------------------------------------------------------ //
@@ -83,6 +83,12 @@ public class GlobalExceptionHandler {
             log.warn("[MATERIAL_NAME_EXISTS] unique material name — path={}", request.getRequestURI());
             return respond(ErrorResponse.of(
                     ErrorCode.MATERIAL_NAME_EXISTS, "Material name already exists", request.getRequestURI()));
+        }
+
+        if (hasConstraint(ex, "idx_category_unique_name")) {
+            log.warn("[CATEGORY_NAME_EXISTS] unique category name — path={}", request.getRequestURI());
+            return respond(ErrorResponse.of(
+                    ErrorCode.CATEGORY_NAME_EXISTS, "Category name already exists", request.getRequestURI()));
         }
 
         log.error("[INTERNAL_ERROR] Unhandled database constraint violation — path={}", request.getRequestURI(), ex);

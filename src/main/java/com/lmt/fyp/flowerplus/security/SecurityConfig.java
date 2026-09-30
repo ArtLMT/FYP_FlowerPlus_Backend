@@ -4,6 +4,7 @@ import com.lmt.fyp.flowerplus.security.oauth2.CustomOAuth2UserService;
 import com.lmt.fyp.flowerplus.security.oauth2.OAuth2AuthenticationFailureHandler;
 import com.lmt.fyp.flowerplus.security.oauth2.OAuth2AuthenticationSuccessHandler;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpMethod;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
@@ -67,6 +68,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
                         ).permitAll()
+                        // Public category list; other methods remain protected by the default policy.
+                        .requestMatchers(HttpMethod.GET, "/api/categories").permitAll()
                         // Management prefixes; ADMIN passes STAFF through roleHierarchy()
                         .requestMatchers("/api/manage/**").hasRole("STAFF")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
