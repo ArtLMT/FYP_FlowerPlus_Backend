@@ -10,6 +10,7 @@ import com.lmt.fyp.flowerplus.module.material.entity.MaterialType;
 import com.lmt.fyp.flowerplus.common.ErrorCode;
 import com.lmt.fyp.flowerplus.exception.ApiException;
 import com.lmt.fyp.flowerplus.module.material.repository.MaterialRepository;
+import com.lmt.fyp.flowerplus.module.material.repository.MaterialReferenceGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class MaterialServiceImpl implements MaterialService {
 
     private final MaterialRepository materialRepository;
+    private final MaterialReferenceGuard materialReferenceGuard;
 
     @Override
     @Transactional
@@ -48,9 +50,17 @@ public class MaterialServiceImpl implements MaterialService {
     @Override
     @Transactional
     public MaterialResponse updateMaterial(UUID id, UpdateMaterialRequest request) {
-        Material material = materialRepository.findById(id)
+        Material material = materialRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.MATERIAL_NOT_FOUND));
         requireCurrentVersion(material, request.version());
+
+        boolean unitOrTypeChanged = material.getUnitOfMeasure() != request.unitOfMeasure()
+                || material.getType() != request.type();
+        if (unitOrTypeChanged && materialReferenceGuard.isUsedByProductRecipe(id)) {
+            throw new ApiException(
+                    ErrorCode.MATERIAL_IN_USE,
+                    "Material unit and type cannot change while a Product recipe references it");
+        }
 
         String normalizedName = StringNormalizer.strip(request.name());
         if (materialRepository.existsByNormalizedNameIgnoreCaseAndIdNot(normalizedName, id)) {

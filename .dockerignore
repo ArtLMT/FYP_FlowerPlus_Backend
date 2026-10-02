@@ -1,0 +1,7 @@
+.git
+.env
+.idea
+.vscode
+target
+product-image-storage
+*.iml

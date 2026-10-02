@@ -19,7 +19,7 @@ recorded decision behind it, and it confused two things: a status that hides a r
 soft delete, and the SRS never approved real deletes for business data. Its removal rules all say
 the opposite — keep the row:
 
-- BR-PROD-11 — products are deactivated, not deleted, once orders reference them
+- BR-PROD-11 — Products are never permanently deleted in V1, even without order references; use lifecycle states
 - BR-MAT-08 — materials used by a recipe or transaction are not deleted
 - BR-ORD-07 — orders are never deleted
 - BR-INV-11 — inventory transactions are never edited or deleted
@@ -41,6 +41,13 @@ one rule was needed for how any table is removed.
 **No generic `is_deleted` flag** until a table has no lifecycle *and* its removed rows must still be
 referenced or restored. No current rule creates such a table. The two soft-delete base classes stay
 unused until one does.
+
+## Product-specific clarification — 2026-09-29
+
+BR-PROD-11 was clarified for Product V1: Products are retained even when no historical order
+references them. V1 exposes no permanent Product DELETE endpoint; Draft and Deactivated remain the
+ways to hide or rework a Product. This is stricter than the general rule for rows with no lifecycle
+and does not change the removal policy for other entity types.
 
 ## Consequences
 

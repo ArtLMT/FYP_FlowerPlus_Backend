@@ -39,6 +39,43 @@ services:
       - "1025:1025"   # SMTP
       - "8025:8025"   # Web UI
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flowerplus_app
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+      - mailpit
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      OAUTH2_REDIRECT_URI: ${OAUTH2_REDIRECT_URI:-http://localhost:8080/swagger-ui/index.html}
+      EMAIL_HOST: mailpit
+      EMAIL_PORT: 1025
+      EMAIL_USERNAME: ${EMAIL_USERNAME}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      MAIL_SMTP_AUTH: "false"
+      MAIL_SMTP_TLS: "false"
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      FLOWERPLUS_PRODUCT_IMAGE_UPLOAD_DIRECTORY: /var/lib/flowerplus/product-images
+    ports:
+      - "8080:8080"
+    volumes:
+      - product_images:/var/lib/flowerplus/product-images
+
 volumes:
   postgres_data:
   redis_data:
+  product_images:

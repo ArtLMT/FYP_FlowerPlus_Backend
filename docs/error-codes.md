@@ -44,11 +44,12 @@ Every error has the same frame. `details` appears only for the codes listed unde
 
 ### `details` by code
 
-| Code | `details` |
+| Code | details |
 |---|---|
-| `OTP_THROTTLED`, `OTP_DAILY_LIMIT_REACHED` | `{ "retryAfterSeconds": number }` — seconds until the same request can succeed |
-| `VALIDATION_FAILED` from a request body | `{ "fields": [ { "field", "rule", "message" } ] }` |
-| every other code | no `details` |
+| OTP_THROTTLED, OTP_DAILY_LIMIT_REACHED | { retryAfterSeconds: number } — seconds until the same request can succeed |
+| VALIDATION_FAILED from a request body | { fields: [ { field, rule, message } ] } |
+| PRODUCT_CATEGORY_IN_USE | { productIds: [UUID, ...] } — Active products that would lose their last category |
+| every other code | no details |
 
 ```json
 "details": { "fields": [
@@ -78,7 +79,7 @@ the client code built wrongly gets a different code, because there is no field t
 | Path id that cannot be parsed, such as `/api/addresses/not-a-uuid` | `404 NOT_FOUND` — it names nothing |
 | No endpoint at the path | `404 NOT_FOUND` |
 | Endpoint exists, not for this method | `405 METHOD_NOT_ALLOWED`, with the `Allow` header |
-| Body is not `application/json` | `415 UNSUPPORTED_MEDIA_TYPE` |
+| Body media type is not accepted by the endpoint (for example, multipart sent to a JSON-only endpoint) | `415 UNSUPPORTED_MEDIA_TYPE` |
 
 On a protected path, a request without a token is `401 UNAUTHENTICATED` before any of these apply.
 
@@ -102,14 +103,31 @@ On a protected path, a request without a token is `401 UNAUTHENTICATED` before a
 | `ADDRESS_LIMIT_REACHED` | 409 | Adding an address when the customer already has 20 | "You can save up to 20 addresses" |
 | `MATERIAL_NOT_FOUND` | 404 | A material id that does not exist on `/api/manage/materials/{id}` management endpoints | "Material not found" |
 | `MATERIAL_NAME_EXISTS` | 409 | Creating or editing a material with a name that already exists (compared case-insensitively after trimming) | "A material with this name already exists" |
+| `MATERIAL_IN_USE` | 409 | Changing a material's unit or type while any current product recipe or inventory batch references it | Keep the unit/type unchanged or remove all current references first |
+| `CATEGORY_NAME_EXISTS` | 409 | Creating or renaming a category to a name already used after trimming and case folding | Offer the existing category or another name |
+| `PRODUCT_CATEGORY_IN_USE` | 409 | Deleting a category would leave an Active product without a category | Read affected Active Product UUIDs from `details.productIds`; ask staff to recategorize them |
+| `PRODUCT_INVALID_STATE` | 409 | Product state transition is not allowed by BR-PROD-17 | Reload the product and show its current state |
+| `PRODUCT_TYPE_IMMUTABLE` | 409 | An update attempts to change a product's type after creation | Explain that a new product is required |
+| `PRODUCT_IMAGE_INVALID` | 400 | Uploaded content is not a supported, valid JPG, PNG or WebP image | Ask for a supported image file |
+| `PRODUCT_IMAGE_TOO_LARGE` | 413 | Product image exceeds 2,000,000 bytes | Ask for a smaller image |
+| `PRODUCT_IMAGE_LIMIT_REACHED` | 409 | Adding an image would exceed five images on a product | Remove an image before adding another |
+| `PRODUCT_IMAGE_REQUIRED` | 409 | Removing the final image from an Active product would make it incomplete | Deactivate or move the product to Draft first |
+| `PRODUCT_RECIPE_MATERIAL_INACTIVE` | 409 | A newly added recipe line references a Deactivated material | Reactivate the material or choose another |
+| `PRODUCT_RECIPE_STOCK_CONFLICT` | 409 | A PreMade recipe edit is attempted while finished stock remains available or reserved | Sell/write off remaining stock, then retry |
+| `SALE_PRICE_CONFLICT` | 409 | A Product base-price change would invalidate a running or scheduled sale | Update or end the sale explicitly first |
 | `CONCURRENT_MODIFICATION` | 409 | A person submits an update, state transition or deletion using a stale resource version (ADR 0006) | Reload the resource, show its newer state, then let the user decide whether to apply the change again |
 | `VALIDATION_FAILED` | 400 | Request failed validation — see above | Show per field from `details.fields[].rule` |
 | `MALFORMED_REQUEST` | 400 | Unparseable JSON or a wrongly typed query parameter — a client bug | Generic error; report the bug |
 | `NOT_FOUND` | 404 | No endpoint at the path, or a path id that cannot be parsed | Not-found screen |
 | `METHOD_NOT_ALLOWED` | 405 | The path exists, but not for this HTTP method | Generic error; report the bug |
-| `UNSUPPORTED_MEDIA_TYPE` | 415 | The body is not `application/json` | Generic error; report the bug |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | The endpoint does not accept the submitted media type | Generic error; report the bug |
 | `ACCESS_DENIED` | 403 | Signed in, but not allowed — including a customer on `/api/manage/**`, or anyone but Admin on `/api/admin/**` | "You don't have access" |
 | `INTERNAL_ERROR` | 500 | Anything unexpected | Generic error |
+
+The Product image upload endpoint accepts `multipart/form-data`. It returns the same `ErrorResponse`
+frame as JSON endpoints: malformed multipart requests use `MALFORMED_REQUEST`, unsupported file
+content uses `PRODUCT_IMAGE_INVALID`, and excess image bytes use `PRODUCT_IMAGE_TOO_LARGE`. It does
+not return framework-generated HTML or a second error shape.
 
 ### Answers that are the same on purpose
 

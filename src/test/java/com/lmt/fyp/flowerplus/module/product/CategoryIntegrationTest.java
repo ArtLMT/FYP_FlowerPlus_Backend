@@ -292,8 +292,8 @@ class CategoryIntegrationTest {
     private UUID createProduct(String productStatus, String name, UUID... categoryIds) {
         UUID productId = UUID.randomUUID();
         jdbcTemplate.update("""
-                        INSERT INTO product (id, name, price, status, created_at, updated_at, version)
-                        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)
+                        INSERT INTO product (id, name, price, product_type, status, created_at, updated_at, version)
+                        VALUES (?, ?, ?, 'PRE_ORDER', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)
                         """,
                 productId, name, new BigDecimal("15000"), productStatus);
         for (UUID categoryId : categoryIds) {

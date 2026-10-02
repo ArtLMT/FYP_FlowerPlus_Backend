@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 import java.util.UUID;
 
 @Repository
@@ -21,4 +22,8 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM Category c WHERE c.id = :id")
     Optional<Category> findByIdForUpdate(@Param("id") UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Category c WHERE c.id IN :ids ORDER BY c.id")
+    List<Category> findAllByIdForUpdate(@Param("ids") Collection<UUID> ids);
 }

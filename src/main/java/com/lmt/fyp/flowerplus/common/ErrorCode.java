@@ -43,10 +43,17 @@ public enum ErrorCode {
     /* ===================== MATERIAL ===================== */
     MATERIAL_NOT_FOUND(HttpStatus.NOT_FOUND, "material.notFound"),
     MATERIAL_NAME_EXISTS(HttpStatus.CONFLICT, "material.nameExists"),
+    MATERIAL_IN_USE(HttpStatus.CONFLICT, "material.inUse"),
 
     /* ===================== PRODUCT ===================== */
     CATEGORY_NAME_EXISTS(HttpStatus.CONFLICT, "category.nameExists"),
     PRODUCT_CATEGORY_IN_USE(HttpStatus.CONFLICT, "product.categoryInUse"),
+    PRODUCT_RECIPE_MATERIAL_INACTIVE(HttpStatus.CONFLICT, "product.recipeMaterialInactive"),
+    PRODUCT_INVALID_STATE(HttpStatus.CONFLICT, "product.invalidState"),
+    PRODUCT_TYPE_IMMUTABLE(HttpStatus.CONFLICT, "product.typeImmutable"),
+    PRODUCT_IMAGE_INVALID(HttpStatus.BAD_REQUEST, "product.imageInvalid"),
+    PRODUCT_IMAGE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "product.imageTooLarge"),
+    PRODUCT_IMAGE_LIMIT_REACHED(HttpStatus.CONFLICT, "product.imageLimitReached"),
 
     /* ===================== CONCURRENCY ===================== */
     CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "concurrency.modification"),
